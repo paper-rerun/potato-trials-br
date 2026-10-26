@@ -1,0 +1,22 @@
+{
+  "title": "Potato management trials in Brazil: 1,874 results from 20 Embrapa publications",
+  "upload_type": "dataset",
+  "description": "1,874 trial results from 45 trials on potato (Solanum tuberosum) in Brazil, transcribed from the tables of 20 open-access Embrapa publications (1974-2025): diseases and pests (late blight Phytophthora infestans, early blight, bacterial wilt, blackleg and soft rot, PVY and PLRV, root-knot nematode, Diabrotica speciosa, aphids and leaf beetles), fungicides and alternative products, forecast-based spraying, insecticides and nematicides, cultivar and clone trials, seed-potato degeneration, phosphorus and potassium, organic fertilization, plant density for pre-basic seed, haulm desiccation and soil decompaction, with trial context (place, season, planting date, seed tuber, water regime, cultivar, application timing, design), measured variable and value, tuber size class, assessment time, and the page and table of origin. Each document was transcribed twice, independently, by AI agents, and every disagreement was settled against the PDF; a human reviewed the result before publication. Part of the Paper Rerun project (Open Tables).",
+  "creators": [
+    {
+      "name": "Tessaro, Filipe"
+    }
+  ],
+  "license": "cc-by-4.0",
+  "keywords": [
+    "Solanum tuberosum",
+    "potato",
+    "late blight",
+    "Phytophthora infestans",
+    "Diabrotica speciosa",
+    "Brazil",
+    "Embrapa",
+    "open data",
+    "AI agents"
+  ]
+}

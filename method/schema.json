@@ -1,0 +1,2180 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "batata/schema.json",
+ "title": "Potato (Solanum tuberosum) disease, pest and crop management trials in Brazil, one record per measured value",
+ "description": "Fixed output format for every extractor and every blind transcriber. Each document gives one JSON object {trials, tables, records, end_checklist}. trials holds the context of each trial once. tables is the inventory of every table, figure and text block with values (page, label, data_cells, transcribed, skipped_reason, table_level_labels), with its cell count closed; table_level_labels carries what holds for the whole table once, starting with its axes (what the rows are, what the columns are, whether it prints only main effects), and columns[] carries what holds for each measured column, including when it was measured, which is always declared. Every record points to its trial_id, table_id and column_id and inherits from all three; the effective value of a field is the record's, else the column's, else the table's, else the trial's. end_checklist closes the inherited context per trial, the labels and footnotes per table, the axes and rows, the stage per column, the doses resolved per treatment with both dose forms, the counted applications and the uniform sprays kept out, the target of each trial and the cell totals. Built from trigo/schema.json v7.0 with the changes in trigo/RODADA.md ('O que mudar na próxima rodada'), listed in changes_from_trigo_v7; the earlier rounds' lessons are already in v7. Source PDFs and record pages are in sources.json.",
+ "version": "8.0",
+ "rules": [
+  "1 SCOPE. Inventory and transcribe every page of the document, except when sources.json gives extract_pages for it. Then only those pages go to tables[] and records[]; the rest is read only to fill context.",
+  "2 INVENTORY FIRST. Before writing any record, render every page and list every table, figure and text block with values in tables[], in page order, with table_id, page, label, kind and the number of data cells. Tables printed sideways on a portrait page are read from the rotated rendered page (sources.json notes says which documents have them). At the end fill transcribed and skipped_cells. For each entry: data_cells = transcribed + skipped_cells, and transcribed = number of records with that table_id. A document is not finished until every entry closes.",
+  "3 Read numbers from the rendered page, not only from the text layer. The printed page is the source; the text layer of old scans has wrong characters ('Produtiv1dade', '19B9' for 1989), and some PDFs have an encoded text layer that reads as random letters.",
+  "4 TRIALS FIRST. One trials[] entry per trial: per site, per season (safra de outono, safra de primavera, safra das águas, safra da seca, cultivo de inverno are different seasons), per planting date block, per experiment number and per environment (field, greenhouse pots, growth chamber, laboratory, storage). A document with one experiment has one trial. A cultivar or clone network printed with one column block per site gives one trial per site. Each group of environments printed as its own column block is one trial; rainfed and irrigated versions of the same test are two trials. A column or row of means across trials ('Média', 'Conjunto', 'Análise conjunta', 'Média dos locais', 'Média das safras', 'Médio') gets its own trial with study_kind = 'joint_analysis' and pooled_from listing the trial_ids it pools; a column of separate experiments printed side by side is not a joint analysis. Tuber quality measured at harvest (dry matter, specific gravity, chip color, defects) stays in the field trial; a store or cold room where tubers were kept and measured over months is its own trial with environment storage; a lab bioassay run on its own (detached leaflets inoculated with Phytophthora, larvae fed on tubers) is its own trial with environment laboratory.",
+  "5 Fill each trial context field once, from wherever the document prints it (methods, caption, footnote, another table, a soil or weather table, the abstract), and put the page in context_source_pages. Use null only when the document prints it nowhere. Never take location from the authors' affiliation or the publisher's address: location is where the trial was run, as printed ('Estação Experimental Cascata, Pelotas, RS', 'Canoinhas, SC', 'Embrapa Hortaliças, Brasília, DF'). affiliation is the institution that ran it, when printed with the trial. Write long context (application_stages, uniform_sprays, design_notes, base_fertilization, seed_tuber) in our own words: a copy longer than 15 words gets cut at merge.",
+  "6 TABLE AXES BEFORE RECORDS. For every results, figure_labeled and text entry, before any record, fill table_level_labels.row_identity.axes: what the rows are (row_factors, in the printed order), what the columns are (column_axis_kind), the factor on the columns when there is one (column_factor), and whether the table prints only the main effects of a factorial (main_effects_only). column_axis_kind: variables = each column is a measured variable (the usual); evaluation_times = the columns are the same variable at several times (requeima severity at 50, 60 and 70 DAP; aphids per leaf at weekly dates), one columns[] entry per time with its own crop_stage; size_classes = the same variable in several tuber size or grading classes (yield of Especial, Primeira, Segunda and Diversos; % of tubers > 45 mm, 33-45 mm, < 33 mm), one columns[] entry per class with columns[].size_class, the treatment unchanged; trial_blocks = column blocks are sites, seasons, planting dates or experiments that are separate trials, one columns[] entry per block and variable, each record taking the trial of its block; treatment_factor = the columns are levels of a treatment factor (N rate across the columns, with and without fungicide, seed tuber size across the columns, cultivar across the columns), one columns[] entry per level and variable with the level in columns[].factor_level, and each record's treatment joins the row label and the column level with ' x ' in the printed order. A text entry has one column per variable and puts the factor level in the treatment.",
+  "7 MAIN EFFECTS ONLY, closed examples. When the methods describe a factorial and the table prints only the mean of each level of one factor averaged over the other (or a block for each factor, 'Efeito de cultivares' and 'Efeito de doses'), main_effects_only = true and every record of the table has is_marginal = true, with treatment = the level as printed and treatment_type = the class of that level's factor. Wheat chagas2026, Tabela 5: blast incidence by cultivar and by sowing date as separate main effects; cultivar rows genotype, date rows the date class (planting_date here), all is_marginal = true. Tomato togni2009, Tabela 3: natural enemies under the organic and the conventional system averaged over the planting arrangements; is_marginal = true, treatment_type cultural. A split table ('Desdobramento', one factor within each level of the other) is not main effects: its cells are factorial cells, is_marginal = false.",
+  "8 TABLE LABELS, THEN COLUMNS. After the axes, read the caption, the column headers, the row stub and every footnote and fill table_level_labels once (statistic and statistic_stated with page and place, transformation_stated, treatment_type of the ordinary rows, row_identity, letters_meaning and significance_test, scale_meaning, source_inconsistency for the whole table). Then fill columns[]: one entry per measured column with header, variable_standardized, unit and where it was read, organism_stage, plant_part, biotic_target, factor_level, size_class and when it was measured. The records inherit from the column, then from the table, then from the trial.",
+  "9 UNIT FROM HEADER, CAPTION, FOOTNOTES AND METHODS. A column's unit is read from its header, the caption, every footnote, the methods and the text, in that order, and unit_source_place says where. A unit stated only in the methods ('a produtividade foi expressa em t/ha', 'massa de tubérculos por parcela de 4,8 m2, em kg') goes to every column it describes: in the wheat round 117 fields of one document lost a unit that was printed only in the methods. A footnote that gives a unit or a scale goes to every column it points to. List every footnote of every results, figure_labeled and text entry in end_checklist.table_footnotes, with what it says and the columns it went into. unit_source_place = not_printed only after header, caption, footnotes, methods and text were searched; specific gravity and indices are often printed without unit, and then the unit stays null.",
+  "10 WHEN IT WAS MEASURED, PER COLUMN, NEVER EMPTY. Every columns[] entry declares crop_stage_status. When the time is printed anywhere (header '70 DAP', '7 DAA', caption 'no início da tuberização', footnote, methods 'avaliações semanais a partir dos 35 dias após o plantio', 'colheita aos 110 dias'), crop_stage holds it with its page, crop_stage_source_place and crop_stage_refers_to; when it is printed nowhere the status is not_printed; when the column has no time it is not_applicable. A table whose columns were measured at different times gives each column its own stage. A record carries crop_stage only when one cell differs from its column; when the rows are evaluation dates, each record carries its own crop_stage. The methods are read for the time of every column, not only the header and the footnotes (wheat brancao2004 and picinini1999, 155 fields).",
+  "11 NEVER INVENT A STAGE. crop_stage holds only a time the document prints. A yield, tuber-number, size-class, dry-matter, specific-gravity or defect column takes a harvest stage only when the document prints the harvest with a date, a day count or a stage ('colheita aos 105 DAP', 'colhido em 20/12/2005', 'colheita 20 dias após a dessecação das ramas'); then crop_stage is that text and crop_stage_refers_to harvest. When the document only says the tubers were harvested ('na colheita', 'após a colheita') without date, count or stage, the column is crop_stage_status not_printed: the moment is not printed, only the event. Never write 'na colheita' because yield is obviously measured at harvest. Closed example, wheat silva1991 and salvadori1999 (156 fields between the two sides): yield and grain columns were given 'na colheita' with no harvest printed anywhere; the right value was not_printed. end_checklist.columns counts the harvest-stage columns and each must print the harvest.",
+  "12 EXCEPTIONS ARE WRITTEN, NEVER LEFT EMPTY. A record field left null inherits from its column, table or trial in silence, so a null where the row differs looks right and is wrong. Before writing records, list in row_identity.special_rows every row whose class differs from the table (Testemunha, controle negativo, controle positivo, Média, a program row in a table of single products, an untreated seed lot) and in columns[] every column whose statistic or transformation differs. Every record of a special row carries treatment_type; every column that differs carries its own statistic or transformation_stated.",
+  "13 statistic_stated is true only when the document says what the number is, for that table: caption or footnote 'Médias seguidas...', 'média de quatro repetições', 'Média geral', 'total', a methods sentence that names the table. A footnote that only explains the letters ('Médias seguidas pela mesma letra...') does say that the cells are means: statistic_stated = true with statistic_source_place = 'footnote'. Otherwise statistic is 'mean' only when the table is a treatment-means table by context, and statistic_stated is false.",
+  "14 Percentages and relative values computed by the authors against a check (eficiência de controle %, % de controle (Abbott), controle calculado pela AACPD, produtividade relativa, aumento relativo, perda %, redução em relação à testemunha) get statistic = 'relative_to_check'. statistic_stated = true when the header or footnote says what it is relative to; the formula goes in columns[].notes. Never recompute them. A difference between two printed columns that the authors print is data with statistic 'other' and the formula in columns[].notes. A share of tubers in one size class is statistic 'percentage_of_total'.",
+  "15 One record per data cell that holds a measured value. A table with 12 cultivars and 5 measured columns gives 60 records. A factorial table gives every cell of every combination (all cultivars x both seasons, all fungicide programs x every cultivar). A size-class table gives one record per treatment and class.",
+  "16 MARGINAL ROWS AND COLUMNS. Marginal rows and columns printed in the table are data cells and are always recorded, with their letter when there is one: Média, Médias, Média geral, Médio, MGT, Total, Conjunto, Análise conjunta. Set is_marginal = true and treatment to the printed label ('Média'). A mean column across sites or seasons is a record of the joint_analysis trial (rule 4) and every record of it has is_marginal = true. Closed example, wheat ramos1976, Quadro 3: yields per year 1971 to 1974 and a column 'Conjunto'; the four year columns are four trials with is_marginal = false, and every 'Conjunto' record belongs to the joint_analysis trial with is_marginal = true. Wheat lima2005, Tabela 1: FHB index at two sowing dates and a column 'Médio'; the 'Médio' records are is_marginal = true. Both sides missed this in different documents (59 fields). A 'Total' column that adds the size classes of the same row (total yield beside the class yields) is not marginal: it is its own variable (tuber_yield_total_area, statistic total when the document says it is the sum).",
+  "17 Copy every number exactly as printed. value_as_printed holds the printed text without letters and without the dispersion term; value holds the number. The only allowed changes are decimal comma to point (12,5 -> 12.5) and removing thousands separators (24.350 kg/ha -> 24350, 1.083 -> 1083 when it is a thousands point). A leading zero is kept in value_as_printed ('05') and dropped in value (5). When a point could be decimal or thousands (yields in kg/ha and plants per ha are thousands, specific gravity '1.075' and '1,075' is decimal), decide from the column's other cells and the unit, and say so in notes when it is not obvious. A table that mixes decimal commas and points keeps each cell as printed.",
+  "18 Never compute, convert, round or infer a value. No averages across rows, no sums of size classes, no unit conversions (kg/parcela stays kg/parcela, t/ha stays t/ha, sc/ha stays sc/ha), no relative values computed from yields, no values read off a chart by eye, no value derived from a regression equation. If the document does not print the number, it does not go in.",
+  "19 ROW IDENTITY. treatment is the label printed in that table's row or column header, exactly as written, including footnote markers. When the table prints only a code ('T3', '5', 'C-1750-15-95'), treatment = the code and treatment_code = the same code; the cultivar, product or input it stands for goes in cultivar or active_ingredient_or_input only when the document gives the key, with the page of the key in notes. When the row prints both a code and a name ('T5 - Mancozebe', '3 Agata'), treatment = the whole printed label, treatment_code = the code and the name goes in its field. Potato names: a released cultivar ('Agata', 'Asterix', 'Atlantic', 'Bintje', 'Monalisa', 'Baronesa', 'Macaca', 'BRS Ana', 'BRS Clara', 'BRS Eliza', 'BRS F63 (Camila)', 'BRSIPR Bel', 'Catucha', 'Cristal', 'Eliza', 'IAC Aracy') is a cultivar name: treatment = cultivar = the name, treatment_code null. A clone or breeding line known only by its code ('C-1750-15-95', 'F 63-14-02', 'CL 02-05', 'CBM 9-10', 'SMIB 106-7') is treatment_code AND treatment, cultivar null. When a clone later released as a cultivar is printed by its code, it is still a code; the cultivar name goes in cultivar only when the document gives it. When unsure, the document decides: 'cultivar' or 'clone' in the methods or the table. A number that only gives the printed order or a ranking is not a code. A plot treatment number printed in its own column beside a cultivar is treatment_code. Decide this once per table in row_identity, then write every row the same way.",
+  "20 treatment_type, closed examples. genotype = rows that differ by cultivar or clone, including reaction screening; fungicide = foliar fungicide sprays (product, dose); seed_tuber_treatment = any product applied to the seed tuber or in the planting furrow at planting against seed- or soilborne pests and diseases (fungicide, insecticide, bactericide); insecticide = foliar or soil insecticides applied in the crop; nematicide = nematicides and soil fumigants (aldicarb, carbofuran, metam sodium, dazomet, methyl bromide), also when the fumigant is compared with solarization; spray_program = a whole program row that differs by the number, timing, interval or sequence of sprays of one or several products (weekly vs by a forecasting system, 4 vs 8 sprays, protectant then systemic), when the row is the program; biological = microbial agents against a pest or disease (Trichoderma, Bacillus, Beauveria, Bt) by any route; natural_enemy = released parasitoids or predators; botanical = plant extracts and oils used as pesticides; resistance_inducer = silicon, phosphites, acibenzolar, chitosan tested as inducers; biostimulant_or_inoculant = growth-promoting microbes, amino acids, seaweed extracts, humic substances as biostimulants; herbicide; fertilizer = N, P, K, Ca, Mg, S, micronutrients (rate, source, timing, split, foliar); liming_gypsum = lime and gypsum; organic_amendment = manure, compost, green manure biomass as nutrient source; growth_regulator = sprout inhibitors, gibberellic acid on seed tubers, haulm growth regulators; water_management = irrigation depth, frequency, timing, rainfed vs irrigated; planting_date; seed_tuber = rows that differ by the seed tuber itself (size or type, mass, physiological age, generation or category, origin, whole vs cut, pre-sprouting, minitubers vs field tubers); spacing_density = row and plant spacing, plants or stems per area, planting depth; rotation_tillage = previous crop, rotation, cover crop, tillage system; cultural = any other management (hilling or amontoa, mulch, harvest time, roguing); haulm_desiccation = haulm killing method or timing; storage = storage temperature, duration, atmosphere or sprout-control treatment after harvest; inoculation_infestation = rows that differ by inoculation or artificial infestation; pathogen_isolate = rows that are isolates, races, mating types or pest populations; survey = rows that are sites or dates of an observational study; control = untreated check (Testemunha, sem aplicação, sem fungicida, sem inseticida, sem adubação) wherever it is printed, also the zero rate of a fertilizer trial; combination = a factorial cell crossing two classes and a marginal row that averages over two factors; other (say what in notes). SPECIAL ROWS, closed: 'Média' or 'Média geral' over two factors is combination with is_marginal = true; the mean of a column of genotypes is genotype with is_marginal = true; a positive control (a standard fungicide program) keeps its product class; 'Testemunha' is control.",
+  "21 UNIFORM SPRAYS ARE CONTEXT. A fungicide, insecticide or other pesticide applied the same way to every plot of a trial whose treatment is something else (cultivar or clone, fertilizer, planting date, spacing, seed tuber, irrigation, haulm desiccation) is not a treatment: it goes in trials[].uniform_sprays, in our own words with products, doses, number and timing as printed. For those sprays, application_method, application_stages and n_applications stay null on the trial and on the records, and active_ingredient_or_input and dose_and_unit stay null on the records. Potato cultivar and fertilizer trials almost always print 'pulverizações preventivas semanais contra requeima' or a list of products in the methods: that is uniform_sprays. Closed example, wheat chagas2026 and maciel2015 (436 fields between the two sides): an eight-cultivar sowing-date trial and a genotype screening sprayed with fungicide and insecticide on all plots; one side wrote the sprays as the application of every record. The right form: the sprays in uniform_sprays, the cultivars as genotype records with no product, no dose, no stages and no count. When some plots get sprays and others do not (with vs without fungicide), the sprays are a treatment factor, not uniform.",
+  "22 COUNT THE APPLICATIONS. n_applications is the number of applications of the tested treatment. When the text or table prints it, take it. When a treatment table or spray calendar marks the dates, days after planting or stages at which each treatment was applied (an X per date, a list of dates per row, 'aplicações aos 30, 37, 44 e 51 DAP'), count them: that count is printed information, not an inference. When it is the same for every treated row it goes on the trial; when it differs by treatment, each record carries its own count with the page of the calendar in notes. Closed example, wheat ramos1976, Quadro 1 (p9): N applied at sowing, tillering or booting per treatment, one to three times; the count of each treatment was left out by one side in 110 fields. Fill end_checklist.doses.application_count_source. Do not count when the document gives only an interval without a number or a period ('aplicações semanais durante o ciclo'): then n_applications stays null and the interval goes in application_stages.",
+  "23 CHECK AND n_applications. A null n_applications on a record means 'as the trial', so an untreated check left null inherits the sprays of the treated plots. Closed rule: the untreated check in a trial with a printed or counted n_applications gets n_applications = 0 on its records, with the page that says it is untreated in notes; in a trial without a count, the check stays null like every other row. Never write 0 for a check when the trial has no count. A program row whose number of sprays differs from the trial (spray_program) carries its own n_applications.",
+  "24 DOSE RESOLVED PER TREATMENT. dose_and_unit is inherited from the methods and from treatment tables, and it is resolved for each treatment: the record takes only the product or products that treatment received and only their doses, with the page in dose_source_page. A treatment-table cell that holds the doses of several treatments, or several doses of one product used by different treatments, never goes whole into a record. Closed example, tomato mattos2002, Tabela 1 (p3): one cell printed '24 g (esguicho)', '8 g (pulverização)' and '30 g (estratégia 6)'; strategy 2 used only the spray, so its records take '8 g p.c./20 L' and nothing else, strategy 6 takes '30 g p.c./20 L' (96 fields were wrong in that document). Record each resolved cell in end_checklist.doses. dose_and_unit is null only for the untreated check, for treatments that are not products (genotypes, dates, spacings, seed sizes) or when the document prints the dose nowhere; a fertilizer rate is a dose ('150 kg/ha de K2O').",
+  "25 DOSE IN BOTH FORMS. When the treatment table or the methods print the dose of a product both as commercial product (p.c., produto comercial, kg or L/ha of the formulation) and as active ingredient (i.a., g/ha of ingredient), every record of that treatment carries both, commercial first, joined with '; ' ('2,0 kg p.c./ha; 1.600 g i.a./ha'), and dose_source_page is the page of the treatment table. Keeping one form and dropping the other is an error. Closed example, wheat goulart1999, Tabela 1 (p13): seed-treatment doses printed per 100 kg of seed as product and as ingredient; one side kept only one form in 224 fields. When only one form is printed, only that one. end_checklist.doses says whether both forms were printed and how many records carry them.",
+  "26 FIXED FORM FOR PRODUCT AND DOSE. active_ingredient_or_input: the active ingredient first, as printed, then the commercial name in parentheses when the document prints it ('mancozebe (Dithane PM)'); a mixture joins ingredients with ' + ' in the printed order ('metalaxil-M + mancozebe (Ridomil Gold MZ)'); an adjuvant goes after ' + ' with its own name. dose_and_unit: 'value unit' for each product in the same order, joined with ' + ' for a mixture, commercial-product and active-ingredient doses separated by '; ' (rule DOSE IN BOTH FORMS). The spray volume (volume de calda, L/ha) is never part of the dose: it goes to trials[].spray_volume, or to the record's notes when it varies by treatment.",
+  "27 INOCULATION IS NOT AN APPLICATION. application_method, application_stages and n_applications describe management inputs only (fungicide, insecticide, seed-tuber treatment, fertilizer, regulator, biological). Inoculation or artificial infestation with the pathogen or pest (spraying Phytophthora sporangia, wounding tubers with Ralstonia or Pectobacterium, releasing viruliferous aphids or tuber moth adults, planting in infested soil on purpose) goes in trials[].inoculation_or_infestation, never in those three fields. When inoculation is a factor of the trial (inoculated vs non-inoculated, inoculum levels), it is also part of each record's treatment and the non-inoculated plots never inherit it. Closed example, tomato charchar1998: half the seedlings were inoculated with Meloidogyne; inoculation_or_infestation holds that, the three application fields stay null, and the records are 'Mudas inoculadas x Nemadoro' and 'Mudas não inoculadas x Nemadoro'.",
+  "28 application_stages is inherited like the dose ('semanal a partir da emergência', 'aos 30, 45 e 60 DAP', 'no sulco de plantio', 'em cobertura na amontoa'). Write it on the trial when all tested treatments share it, on the record when it varies (a timing trial: each row has its own). Null when the document prints the timing nowhere, and for uniform sprays (rule UNIFORM SPRAYS ARE CONTEXT). Write it in our own words when the sentence is long.",
+  "29 Design and context tables are inventoried but give no records: tables that only list treatments, cultivars and their origin or class, clones and their parents, products, doses, spray calendars, sites and planting dates of a network, size-class limits, rating scales, soil analysis before the trial or weather. List them with kind = 'design', 'soil', 'weather' or 'scale', data_cells = 0, table_level_labels = null, columns = [], and use their content to fill trial and record context (a spray calendar gives n_applications by rule COUNT THE APPLICATIONS). Dose columns inside a results table are context and not data cells. A rainfall or temperature column inside a results table is weather context: skipped cells, named in skipped_reason. A forecasting-system output (severity values or risk units accumulated per date) that decides the sprays is weather context unless it is the measured outcome of the treatments. Soil analysis after the trial that compares treatments is a results table.",
+  "30 STATISTICS ARE NOT DATA. ANOVA and test statistics are counted as data cells but skipped, never recorded: CV, F, DMS/LSD, Tukey value, QM, GL, P > F or p-values, R2, correlation coefficients (a correlation matrix is a whole table of skipped cells), intercepts, slopes and regression equations, fitted parameters (progress rate, maximum, inflection point, logistic or Gompertz parameters), contrast estimates, heritability and genetic parameters, standard errors printed as their own row or column. A table of regression equations or an ANOVA summary is kind 'anova', all cells skipped. A statistical-dominance table or figure (pairwise verdicts, 'difere'/'não difere', a matrix of which treatment beats which, a Scott-Knott grouping printed without the means) is kind 'anova' too. Closed example, tomato lage2011: 24 coefficients of disease progress curves and the progress rate r were recorded by one side and were all wrong; they are skipped cells ('progress-curve parameters, 24 cells'). The authors' optimum dose and the yield expected at it are data (optimum_dose); the equation that gives them is not. A standard error printed beside its mean in the same column block is that mean's dispersion (rule 31), not a cell.",
+  "31 A dispersion term attached to one value ('± 0,5', '(2,3)', a standard error printed next to the mean) is not a separate cell: it goes in dispersion_as_printed of that value's record, and the column notes say what it is.",
+  "32 Significance letters and asterisks go in significance_letter exactly as printed, upper and lower case and spacing kept ('a', 'AB', 'a A', 'bc', '*', '**', 'ns' or 'n.s.' printed on a value). What they compare goes once in table_level_labels.letters_meaning, from the footnote. A footnote marker that points to text ('1', 'a/') stays in notes.",
+  "33 Reaction classes, traces and category lists. Cells that print a class instead of a number (R, MR, MS, S, 'Resistente', 'Suscetível', cooking type 'A', 'B') are data cells: value_kind = 'class', value = null, value_as_printed = the class, variable_standardized = 'disease_reaction_class', 'pest_reaction_class' or the column's variable (processing_quality for a cooking type, tuber_physical for a skin color or shape class). 'Tr' or 'traço' printed for a trace is a data cell with value_kind = 'class', value null, value_as_printed as printed. A table that lists names under category headers gives one record per name and column, value_as_printed = the category label.",
+  "34 Scores on a scale (notas 1 a 9 de resistência à requeima, 0 a 5 de sarna, escala de cor de chips) are the *_score variables or the column's quality variable, never a percentage. Write the scale and its direction once in table_level_labels.scale_meaning. A value read from a scale and printed as % of area is severity only when the header prints %.",
+  "35 Illegible cells stay in the inventory. A cell that holds a value but cannot be read with confidence is a record with value_kind = 'illegible', value = null, value_as_printed = the best reading or '', and the doubt in notes. It counts as transcribed. Never skip a cell because the scan is poor.",
+  "36 Cells with '-', '--', '–', 'NR' (não realizado), 'nd', '*' alone or blank are not data cells and are not counted. A printed 0 or 0,0 is a value and is recorded. Footnote markers on a value ('2,4¹', '13,11a/') are not part of the value: keep them in notes; asterisks that mark significance go in significance_letter.",
+  "37 Dates as values. A cell that prints a date as the measured value (emergence date '12/out', date of 50% senescence) is a data cell: value_kind = 'class', value = null, value_as_printed = the date as printed, variable_standardized = the column's variable (stand_or_emergence, plant_trait), and the year comes from the trial. Never convert it to days.",
+  "38 Fraction cells 'x/y' give two records: numerator and denominator, both with statistic = 'total' and the same treatment and variable, notes 'numerator of x/y' / 'denominator of x/y'. The cell counts as 2 data cells.",
+  "39 FIGURES. A figure is data only when it prints numbers at its bars or points: kind = 'figure_labeled', those numbers are records, and its columns[] are the plotted series. Read each number next to its own bar and its own axis category, and check the check bar separately. A figure without printed numbers at the points (a disease progress curve, a regression plot, bars without labels, a weather chart) is kind = 'figure_unlabeled' with trial_ids = [], table_level_labels = null and columns = []; every coefficient, equation term and R2 it prints is a counted cell, skipped. A figure with nothing printed has data_cells = 0 and skipped_reason 'no printed values'. Values are never read off the axis by eye.",
+  "40 Text values: a per-treatment value stated only in the body text is mandatory when no table or labeled figure prints it. Use table_or_figure = 'text', quote at most 15 words in notes, and add one tables[] entry per page with label 'text', counting those values. A value repeated in the text from a table is not recorded again. Summaries across treatments ('a severidade variou de 5% a 90%') are optional and, when recorded, also counted. A text entry also gets a columns[] entry per variable it states.",
+  "41 When the document contradicts itself (text vs table, caption vs footnote, two tables, the caption's year vs the methods' planting date, methods vs number of rows, Portuguese vs English abstract, a mean that does not match its rows), record the value from the table and fill source_inconsistency with both versions and pages. Put it on the record when it is about that value, on table_level_labels when it holds for the whole table, on the trial when it is about trial context. Do not choose or correct.",
+  "42 TRIAL OF A RECORD. A record's trial_id must be one of its table's trial_ids. When the table has one trial_id, every record of it takes that trial_id. When the table holds several trials (a column block per site, season or planting date that is a separate trial), each record takes the trial of its column block. Fix the trial structure in trials[] and tables[].trial_ids before writing records.",
+  "43 PRINTED SIGNS. A negative value keeps its sign in value ('-7,41' -> -7.41). A number in parentheses in a financial or loss table is negative only when the document says so; then value is negative, value_as_printed keeps the parentheses, notes give the page. Without that statement, value is positive and the doubt goes in notes.",
+  "44 TARGET OF THE TRIAL. Each trial names in trials[].biotic_target the pest, disease or disorder its treatments manage or its screening is about. Before writing the columns, answer for each trial in end_checklist.targets: does the document rate any damage, pest, disease or disorder in this trial? If yes, the trial target is not none, and every yield, tuber, plant and economic column of that trial takes the trial target (the authors measure the management with it), never none. A cultivar trial rated for requeima takes late_blight, or multiple when it rates several; a fertilization trial that also rates pinta-preta takes early_blight. A trial whose only sprays are uniform sprays rates no disease unless it prints a disease column. Plant height, stems per plant and tuber shape rated as traits do not make a target by themselves. Each column names what it measures: a requeima severity column is late_blight, a sarna index is common_scab, % plants with mosaic is pvy, % tubers bored by larvae is tuber_moth or diabrotica as the document names the pest, even when the trial targets several. none only for trials that rate no pest, disease or disorder.",
+  "45 Potato variables. Keep total tuber yield (tuber_yield_total_area) apart from marketable yield (tuber_yield_marketable_area), non-marketable yield, yield per plant (tuber_yield_plant) and yield of one size class (tuber_yield_size_class with size_class); the authors' marketable threshold goes in columns[].notes. Tuber number per plant or area is tuber_number, with size_class when it is one class; mean tuber mass is tuber_mean_mass. Dry matter is dry_matter and specific gravity is specific_gravity, never mixed. Disease variables take the disease from the column's biotic_target and the organ from plant_part: severity, score, incidence, index and AUDPC are never mixed; AUDPC relative or standardized stays disease_audpc with the form in notes. Virus incidence by symptoms is disease_incidence_pct (target pvy, plrv or virus_complex); by ELISA or PCR it is virus_detection. Tubers damaged by traça or larva-alfinete are pest_damage_pct with plant_part tuber. Pest counts keep their sample unit in unit ('pulgões/folha', 'adultos/armadilha/semana', 'larvas/tubérculo') and the stage in organism_stage; never convert units.",
+  "46 page is the PDF page number counted from 1 (first page of the file = 1), not the number printed on the page. Proceedings and journal PDFs start at printed pages like 86, 108 or 154.",
+  "47 When one column mixes several things ('Produtividade (t/ha) / nº tubérculos', 'Nota / %'), split into separate records with the matching variable and column.",
+  "48 notes, source_inconsistency, design_notes, uniform_sprays and every other text field quote at most 15 words of the document.",
+  "49 END-OF-TRANSCRIPTION CHECKLIST. Before closing, fill end_checklist. context: one entry per trial and per field in its enum (dose_and_unit is 'filled' only when every non-check product record has its own resolved dose, in both forms when both are printed, or the dose is printed nowhere for it; n_applications 'filled' only when printed or counted and the check follows rule CHECK AND n_applications; uniform_sprays 'filled' when the trial has them, 'not_applicable' when the sprays are the treatment; inoculation_or_infestation 'filled' when the trial was inoculated or infested and the three application fields hold no inoculation; trial_label only when the document has more than one trial). footnotes: one entry per results, figure_labeled or text entry and per label. table_footnotes: every footnote of those entries and the columns it went into. rows: one entry per results, figure_labeled or text entry with the axes, the row_identity counts, the records with code and with name, the special-row records that carry their class and the marginal records; rows_match is true only when they agree. columns: the stage status counts of its columns, the harvest-stage columns (each must print the harvest), the columns whose unit came from the methods or text and those with no unit anywhere, whether the methods were searched, the columns whose statistic or transformation differ from the table and the records with a valid column_id. doses: one entry per trial with product treatments or uniform sprays, with the multi-dose cells resolved, whether both dose forms are printed and carried, where the application count comes from and whether uniform sprays were kept out of the records. targets: one entry per trial with the answer to rule TARGET OF THE TRIAL and the production columns that took the trial target. totals: the sums over tables[] and the record count, with every_table_closes true only when each entry closes."
+ ],
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "trials",
+  "tables",
+  "records",
+  "end_checklist"
+ ],
+ "properties": {
+  "trials": {
+   "description": "One entry per trial (site x season x experiment x environment) in the pages in scope, plus one per joint-analysis block.",
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/trial"
+   }
+  },
+  "tables": {
+   "description": "Inventory of every table, figure and text block with values in the pages in scope, in page order.",
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/table"
+   }
+  },
+  "records": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/record"
+   }
+  },
+  "end_checklist": {
+   "$ref": "#/$defs/end_checklist"
+  }
+ },
+ "$defs": {
+  "trial": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "trial_id",
+    "trial_label",
+    "study_kind",
+    "pooled_from",
+    "environment",
+    "water_regime",
+    "tillage_system",
+    "previous_crop",
+    "location",
+    "affiliation",
+    "season_or_year",
+    "planting_date",
+    "harvest_date",
+    "seed_tuber",
+    "cultivar",
+    "biotic_target",
+    "inoculation_or_infestation",
+    "application_method",
+    "spray_volume",
+    "application_stages",
+    "n_applications",
+    "uniform_sprays",
+    "spacing_or_density",
+    "base_fertilization",
+    "n_reps",
+    "design_notes",
+    "context_source_pages",
+    "source_inconsistency",
+    "notes"
+   ],
+   "properties": {
+    "trial_id": {
+     "description": "Short id unique inside the document: 't1', 't2', ... in order of first appearance.",
+     "type": "string",
+     "pattern": "^t[0-9]+$"
+    },
+    "trial_label": {
+     "description": "How the document names this trial when it has several ('Ensaio sequeiro', 'Ensaio irrigado', 'Safra 2014', '1ª época', 'E3', 'Cruz Alta', 'Conjunto'). Null when the document has one trial.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "study_kind": {
+     "description": "experiment = imposed treatments; observational_survey = sampling of natural conditions with no imposed treatment (disease monitoring in farmers' fields, trap monitoring); joint_analysis = a block of means pooled across other trials of the document (a Média column across sites, 'Conjunto' across years).",
+     "type": "string",
+     "enum": [
+      "experiment",
+      "observational_survey",
+      "joint_analysis"
+     ]
+    },
+    "pooled_from": {
+     "description": "For study_kind = joint_analysis, the trial_ids pooled. Empty array otherwise.",
+     "type": "array",
+     "items": {
+      "type": "string",
+      "pattern": "^t[0-9]+$"
+     }
+    },
+    "environment": {
+     "description": "field = open field, rainfed or irrigated, including cages and screens in the field; greenhouse_pots = casa de vegetação or telado with pots, trays or minitubers; growth_chamber = controlled environment; laboratory = seed-tuber health tests, plates, detached leaflets or tubers, insect bioassays; storage = tubers kept in a store or cold room and measured there (sprouting, losses, chip color after storage) as a trial of its own. Lab analysis of field samples (dry matter, specific gravity, chip color at harvest) stays in the field trial.",
+     "type": "string",
+     "enum": [
+      "field",
+      "greenhouse_pots",
+      "growth_chamber",
+      "laboratory",
+      "storage"
+     ]
+    },
+    "water_regime": {
+     "description": "rainfed = sequeiro, não irrigado; irrigated = irrigation applied to the whole trial (aspersão, pivô central, gotejamento). Null when the document does not say, when irrigation is the treatment, or for laboratory trials.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "rainfed",
+      "irrigated",
+      null
+     ]
+    },
+    "tillage_system": {
+     "description": "no_till = plantio direto, semeadura direta; conventional = preparo convencional (aração, gradagem); minimum_tillage = cultivo mínimo. Null when not printed or when tillage is the treatment.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "no_till",
+      "conventional",
+      "minimum_tillage",
+      null
+     ]
+    },
+    "previous_crop": {
+     "description": "Crop before the potato as written ('milho', 'pousio', 'aveia-preta', 'campo nativo'). Null when not printed or when the previous crop is the treatment.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "location": {
+     "description": "Where the trial was run, municipality/state as written ('Pelotas, RS', 'Canoinhas, SC', 'Estação Experimental Cascata, Pelotas, RS', 'Embrapa Hortaliças, Brasília, DF', 'São Gotardo, MG'), farm or station name kept when printed. Never the authors' address.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "affiliation": {
+     "description": "Institution that ran the trial, when printed with the trial ('Embrapa Clima Temperado', 'Epagri', 'IAPAR' for a site of a network). Null otherwise.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "season_or_year": {
+     "description": "Season or year as written ('2003', 'safra de outono de 2008', 'safra das águas 2011/12', 'cultivo de primavera', 'safrinha 1996').",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "planting_date": {
+     "description": "Planting date as written ('plantio em 12/08/2004', '15 de setembro de 2010'). For planting-date trials leave null; the date is the treatment and goes in the treatment of each record.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "harvest_date": {
+     "description": "Harvest date, day count or period as written ('colheita em 05/01/2005', 'colheita aos 105 dias após o plantio', '15 dias após a dessecação'), and the haulm desiccation when printed. Null if not printed.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "seed_tuber": {
+     "description": "Seed tubers planted in the whole trial, as written or in our own words: size or type ('tipo III, 40 a 50 mm', 'batata-semente graúda'), mass, generation or category ('básica', 'certificada C1', 'G2'), origin, whole or cut, sprouting state ('pré-brotada'). Null when not printed or when the seed tuber is the treatment (treatment_type seed_tuber).",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "cultivar": {
+     "description": "Potato cultivar of the whole trial as written ('Agata', 'Asterix', 'Bintje', 'BRS Clara', 'Monalisa', 'Baronesa'). Null when the genotype varies inside the trial (then on each record).",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "biotic_target": {
+     "description": "Pest, disease or disorder the treatments of this trial manage or the screening is about (rule TARGET OF THE TRIAL). late_blight = requeima (Phytophthora infestans); early_blight = pinta-preta (Alternaria solani, A. grandis); other_foliar_fungal = other leaf and stem fungi (mofo-cinzento Botrytis, septoriose, oídio); black_scurf = rizoctoniose, crosta-preta, cancro da haste (Rhizoctonia solani); fusarium_dry_rot_or_wilt = podridão-seca and murcha de Fusarium; verticillium_wilt = murcha de Verticillium; common_scab = sarna-comum (Streptomyces scabies and others); powdery_scab = sarna-pulverulenta (Spongospora subterranea); silver_scurf_or_black_dot = sarna-prateada (Helminthosporium solani), ponto-preto (Colletotrichum coccodes); other_fungal_disease = any other fungal or oomycete disease (Pythium, Sclerotinia, Sclerotium rolfsii); bacterial_wilt = murcha-bacteriana, podridão-parda (Ralstonia solanacearum, R. pseudosolanacearum); blackleg_soft_rot = canela-preta and podridão-mole (Pectobacterium, Dickeya, Erwinia); pvy = vírus Y da batata (PVY, mosaico, risca, PVYNTN and necrotic ring spot of tubers); plrv = vírus do enrolamento da folha (PLRV, enrolamento); virus_complex = viruses counted together or degenerescência of seed tubers without naming one virus; other_virus = PVX, PVS, PVM, tospoviruses (vira-cabeça), geminiviruses; tuber_moth = traça-da-batata (Phthorimaea operculella) and other tuber moths (Tecia solanivora); aphids = pulgões (Myzus persicae, Macrosiphum euphorbiae) counted or managed as pests or vectors; diabrotica = larva-alfinete and vaquinha (Diabrotica speciosa); whitefly = mosca-branca (Bemisia tabaci); leafminer = mosca-minadora (Liriomyza); thrips = tripes; soil_pests = corós, larva-arame (Conoderus), lagarta-rosca (Agrotis) and other soil insects; other_pest = any other pest (mites, Epitrix, Phyllophaga on leaves, caterpillars); nematodes = Meloidogyne, Pratylenchus and others; weeds; physiological_disorder = tuber defects without a pest or pathogen (coração-oco, embonecamento, rachaduras, esverdeamento, mancha-chocolate, brotação prematura) when the treatments aim at them or the screening is about them; abiotic_disorder = frost, heat, drought, nutrient toxicity, only when the treatments aim at it or the screening is about it; storage_rot = rots and losses in storage without one named pathogen; multiple = the treatments manage several pests or diseases at once (a spray program rated for late and early blight, aphids and PVY together); none = the trial manages and rates no pest, disease or disorder (fertilization, spacing, seed size or planting date for yield and tuber quality only).",
+     "type": "string",
+     "enum": [
+      "late_blight",
+      "early_blight",
+      "other_foliar_fungal",
+      "black_scurf",
+      "fusarium_dry_rot_or_wilt",
+      "verticillium_wilt",
+      "common_scab",
+      "powdery_scab",
+      "silver_scurf_or_black_dot",
+      "other_fungal_disease",
+      "bacterial_wilt",
+      "blackleg_soft_rot",
+      "pvy",
+      "plrv",
+      "virus_complex",
+      "other_virus",
+      "tuber_moth",
+      "aphids",
+      "diabrotica",
+      "whitefly",
+      "leafminer",
+      "thrips",
+      "soil_pests",
+      "other_pest",
+      "nematodes",
+      "weeds",
+      "physiological_disorder",
+      "abiotic_disorder",
+      "storage_rot",
+      "multiple",
+      "none"
+     ]
+    },
+    "inoculation_or_infestation": {
+     "description": "How the pest or disease pressure arrived, as written or in our own words: 'infecção natural', 'plantas inoculadas com suspensão de esporângios de Phytophthora infestans', 'tubérculos inoculados com Ralstonia por ferimento', 'solo naturalmente infestado por Streptomyces', 'liberação de adultos de traça nas gaiolas'. Inoculation never goes in application_method, application_stages or n_applications (rule INOCULATION IS NOT AN APPLICATION). Null if not printed.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "application_method": {
+     "description": "How the management treatments were applied, as written or in our own words ('pulverizador costal de CO2', 'imersão das batatas-semente', 'no sulco de plantio', 'a lanço em cobertura na amontoa'). Never the inoculation, never a uniform spray of a trial whose treatment is something else. Null if not printed.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "spray_volume": {
+     "description": "Spray volume of the whole trial as printed ('400 L/ha', '600 a 1.000 L de calda/ha conforme o desenvolvimento'). It never goes in dose_and_unit. Null if not printed or not a spray trial.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "application_stages": {
+     "description": "Timing of the tested treatments, shared by all of them, in our own words when the sentence is long ('semanal a partir de 30 dias após o plantio', 'no plantio e na amontoa', 'aos 35, 45 e 55 DAP'). Null when it varies by treatment (then on the record), when it is printed nowhere, or when the only sprays are uniform sprays (they go in uniform_sprays). Never the inoculation timing.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "n_applications": {
+     "description": "Number of applications of the tested treatments shared by all treated plots, when printed as a number or countable from a list or calendar (rule COUNT THE APPLICATIONS). The untreated check is handled on its records (rule CHECK AND n_applications). Null when it varies by treatment (then on the record), when printed nowhere, or when the only sprays are uniform sprays.",
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 0
+    },
+    "uniform_sprays": {
+     "description": "Fungicides, insecticides or other pesticides applied the same way to every plot of a trial whose treatment is something else (cultivar, clone, fertilizer, planting date, spacing, seed tuber), in our own words with products, doses, number and timing as printed ('mancozebe semanal e metalaxil-M + mancozebe em 3 aplicações contra requeima em todas as parcelas'). This is trial context, not a treatment (rule UNIFORM SPRAYS ARE CONTEXT): application_method, application_stages, n_applications, active_ingredient_or_input and dose_and_unit stay null for them. Null when not printed or when the sprays are the treatment.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "spacing_or_density": {
+     "description": "Row and plant spacing or density as written ('0,80 m entre linhas e 0,30 m entre plantas', '41.666 plantas/ha', '4 linhas de 5 m'). Null when it is the treatment or is not printed.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "base_fertilization": {
+     "description": "Fertilization and liming applied to the whole trial and not tested, in our own words ('3 t/ha de 05-20-10 no sulco; 60 kg/ha de N na amontoa'). Null when not printed. In a fertilizer trial, only what is not the treatment.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "n_reps": {
+     "description": "Replicates per treatment as an integer, only when printed ('quatro repetições' -> 4). Null otherwise.",
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 1
+    },
+    "design_notes": {
+     "description": "Design in our own words, short: 'blocos ao acaso, quatro repetições', 'parcelas subdivididas', 'parcela de 5 linhas de 6 m, área útil 5 m2'. Null if not printed. At most 15 words quoted.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "context_source_pages": {
+     "description": "PDF page where each filled context field was found, keyed by field name ({\"location\": 2, \"n_reps\": 3, \"planting_date\": 4}). Fields left null are not listed.",
+     "type": "object",
+     "additionalProperties": {
+      "type": "integer",
+      "minimum": 1
+     }
+    },
+    "source_inconsistency": {
+     "description": "Conflict about this trial's context (site in caption vs methods, number of replicates in two places), with both versions and pages. Null otherwise.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "notes": {
+     "description": "Anything else about the trial (soil, weed control, weather, hilling), at most 15 words quoted. Uniform sprays go in uniform_sprays, not here.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "table": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "table_id",
+    "page",
+    "label",
+    "kind",
+    "trial_ids",
+    "data_cells",
+    "transcribed",
+    "skipped_cells",
+    "skipped_reason",
+    "table_level_labels",
+    "columns"
+   ],
+   "properties": {
+    "table_id": {
+     "description": "Short id unique inside the document: 'k1', 'k2', ... in page order. A table that continues on the next page gets one entry and one table_id per page.",
+     "type": "string",
+     "pattern": "^k[0-9]+$"
+    },
+    "page": {
+     "description": "PDF page (from 1) of this entry.",
+     "type": "integer",
+     "minimum": 1
+    },
+    "label": {
+     "description": "Label as printed ('Tabela 3', 'TABELA 2', 'Quadro 3', 'Figura 1'), or 'text' for values stated in the body text of that page. A continuation keeps the label ('Tabela 1').",
+     "type": "string"
+    },
+    "kind": {
+     "description": "results = measured outcomes; anova = analysis-of-variance, correlation, regression-equation, fitted-parameter or statistical-dominance table (pairwise verdicts), all cells skipped; design = treatments, cultivars, products, doses, spray calendars, sites and planting dates of a network, size-class limits; soil = soil analysis before the trial; weather = climate data; scale = rating scale; figure_labeled = figure with printed numbers at bars or points; figure_unlabeled = figure without printed numbers; text = values from body text.",
+     "type": "string",
+     "enum": [
+      "results",
+      "anova",
+      "design",
+      "soil",
+      "weather",
+      "scale",
+      "figure_labeled",
+      "figure_unlabeled",
+      "text"
+     ]
+    },
+    "trial_ids": {
+     "description": "trial_ids whose values are in this entry. Empty for design, soil, weather, scale, anova and figure_unlabeled entries that give no records. A record's trial_id is always one of these.",
+     "type": "array",
+     "items": {
+      "type": "string",
+      "pattern": "^t[0-9]+$"
+     }
+    },
+    "data_cells": {
+     "description": "Numeric, class, trace, date or illegible data cells in the body, counted before transcription. Includes marginal means and statistic rows or columns (CV, DMS, F), and every coefficient, equation and R2 printed in a figure or table; excludes dose columns, row labels, treatment-number columns and empty, '-' or 'NR' cells. A severity-and-response rust cell ('20MS') counts as 2. 0 for design, soil, weather and scale.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "transcribed": {
+     "description": "Records written from this entry. Must equal the number of records with this table_id.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "skipped_cells": {
+     "description": "data_cells - transcribed. Explained in skipped_reason when above 0.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "skipped_reason": {
+     "description": "Why cells were skipped, with counts ('CV row, 5 cells'; 'rainfall column, 7 cells'; 'regression equations and R2, 12 cells'), or why the entry gives no records ('spray calendar'). Null when skipped_cells = 0 and the entry is a results table.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "table_level_labels": {
+     "description": "Labels decided once for the whole entry and inherited by its records. Required for results, figure_labeled and text entries; null for the others.",
+     "oneOf": [
+      {
+       "$ref": "#/$defs/table_level_labels"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "columns": {
+     "description": "One entry per measured column (or per variable row of a transposed table), decided after the axes and before writing records. Required for results, figure_labeled and text entries (a text entry has one column per variable it states); empty for the others. Each column says its variable, unit, organ, target, factor level and, always, when it was measured.",
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/column"
+     }
+    },
+    "notes": {
+     "description": "Anything the checker needs about the table (printed sideways, continues on next page, header spans), at most 15 words quoted.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "table_level_labels": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "statistic",
+    "statistic_stated",
+    "statistic_source_page",
+    "statistic_source_place",
+    "transformation_stated",
+    "treatment_type",
+    "row_identity",
+    "significance_test",
+    "letters_meaning",
+    "scale_meaning",
+    "footnote_summary",
+    "source_inconsistency"
+   ],
+   "properties": {
+    "statistic": {
+     "description": "What the body cells of this table are, for all columns that do not say otherwise in columns[].statistic: mean, relative_to_check, total, median, single_value, percentage_of_total, other. Null only when the print does not let one decide (say why in footnote_summary).",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "mean",
+      "relative_to_check",
+      "total",
+      "median",
+      "single_value",
+      "percentage_of_total",
+      "other",
+      null
+     ]
+    },
+    "statistic_stated": {
+     "description": "true when the caption, header, footnote or methods say what the cells are (see the rule); false when statistic was set from context.",
+     "type": "boolean"
+    },
+    "statistic_source_page": {
+     "description": "PDF page where the statement was read. Null when statistic_stated is false.",
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 1
+    },
+    "statistic_source_place": {
+     "description": "Where on that page: caption, header, footnote, methods, text. Null when statistic_stated is false.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "caption",
+      "header",
+      "footnote",
+      "methods",
+      "text",
+      null
+     ]
+    },
+    "transformation_stated": {
+     "description": "Transformation the document says was used for every column of this table, as written. When it holds only for some columns, null here and written in those columns[].transformation_stated. The values stay as printed.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "treatment_type": {
+     "description": "Class of the ordinary rows of this table, from the record enum (genotype for a cultivar trial, fungicide for a fungicide trial, combination for a factorial table). Every row that differs (Testemunha, Média, a program row, a positive control) is listed in row_identity.special_rows AND written on each of its records: an exception is never left null.",
+     "type": "string",
+     "enum": [
+      "genotype",
+      "fungicide",
+      "seed_tuber_treatment",
+      "insecticide",
+      "nematicide",
+      "spray_program",
+      "biological",
+      "natural_enemy",
+      "botanical",
+      "resistance_inducer",
+      "biostimulant_or_inoculant",
+      "herbicide",
+      "fertilizer",
+      "liming_gypsum",
+      "organic_amendment",
+      "growth_regulator",
+      "water_management",
+      "planting_date",
+      "seed_tuber",
+      "spacing_density",
+      "rotation_tillage",
+      "cultural",
+      "haulm_desiccation",
+      "storage",
+      "inoculation_infestation",
+      "pathogen_isolate",
+      "survey",
+      "control",
+      "combination",
+      "other"
+     ]
+    },
+    "row_identity": {
+     "description": "How the table is laid out (axes) and how the rows (or columns) that name the treatments are printed, decided once before writing records and checked against them at the end.",
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "axes",
+      "row_label_form",
+      "code_key_page",
+      "rows_printed",
+      "rows_with_code",
+      "rows_with_name",
+      "special_rows"
+     ],
+     "properties": {
+      "row_label_form": {
+       "description": "name_only = cultivar, product or level names; code_only = codes ('T1', '5', 'C-1750-15-95', 'F 63-14-02') with no name in the row; code_and_name = both printed in the row or in two columns (a plot treatment number beside the cultivar); level = doses, dates, rates, spacings, seed sizes or times; factorial = two or more factors crossed in rows and columns; isolate = isolate, race or population codes. An ordinal number before a name ('1 Agata', 'Ordem 1') is the printed order, not a code.",
+       "type": "string",
+       "enum": [
+        "name_only",
+        "code_only",
+        "code_and_name",
+        "level",
+        "factorial",
+        "isolate"
+       ]
+      },
+      "code_key_page": {
+       "description": "PDF page of the table or text that says what each code is (treatment table, methods list). Null when the rows are not codes or no key is printed.",
+       "type": [
+        "integer",
+        "null"
+       ],
+       "minimum": 1
+      },
+      "rows_printed": {
+       "description": "Number of treatment rows printed in the table, special rows included (for a factorial, the number of row labels).",
+       "type": "integer",
+       "minimum": 0
+      },
+      "rows_with_code": {
+       "description": "How many of those rows print a code (an accession, line or treatment code). Ordinal numbers and ranking positions are not codes. Every record from these rows has treatment_code.",
+       "type": "integer",
+       "minimum": 0
+      },
+      "rows_with_name": {
+       "description": "How many rows have a cultivar or product name, printed in the row or given by the key. Every record from these rows has cultivar or active_ingredient_or_input.",
+       "type": "integer",
+       "minimum": 0
+      },
+      "special_rows": {
+       "description": "Each row or column whose class differs from table_level_labels.treatment_type, or that is a mean or total: Média, Média geral, Testemunha, Sem controle, Total, a susceptible standard, a spray program in a table of single products, a single factor level in a table of combinations. As printed, with its class and whether it is marginal. Every record of a listed row carries that class explicitly.",
+       "type": "array",
+       "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "label_as_printed",
+         "treatment_type",
+         "is_marginal"
+        ],
+        "properties": {
+         "label_as_printed": {
+          "type": "string"
+         },
+         "treatment_type": {
+          "type": "string",
+          "enum": [
+           "genotype",
+           "fungicide",
+           "seed_tuber_treatment",
+           "insecticide",
+           "nematicide",
+           "spray_program",
+           "biological",
+           "natural_enemy",
+           "botanical",
+           "resistance_inducer",
+           "biostimulant_or_inoculant",
+           "herbicide",
+           "fertilizer",
+           "liming_gypsum",
+           "organic_amendment",
+           "growth_regulator",
+           "water_management",
+           "planting_date",
+           "seed_tuber",
+           "spacing_density",
+           "rotation_tillage",
+           "cultural",
+           "haulm_desiccation",
+           "storage",
+           "inoculation_infestation",
+           "pathogen_isolate",
+           "survey",
+           "control",
+           "combination",
+           "other"
+          ]
+         },
+         "is_marginal": {
+          "type": "boolean"
+         }
+        }
+       }
+      },
+      "axes": {
+       "description": "The table's axes, declared before any record (rule TABLE AXES BEFORE RECORDS).",
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "row_factors",
+        "column_axis_kind",
+        "column_factor",
+        "main_effects_only"
+       ],
+       "properties": {
+        "row_factors": {
+         "description": "Factors whose levels name the rows, in the printed order ('cultivar'; 'clone'; 'fungicide program'; 'N rate', 'K rate' for a two-factor row stub; 'evaluation date' when the rows are times). At least one.",
+         "type": "array",
+         "minItems": 1,
+         "items": {
+          "type": "string"
+         }
+        },
+        "column_axis_kind": {
+         "description": "variables = each column is a measured variable; evaluation_times = the same variable at several times; size_classes = the same variable (yield, number, % of tubers) in several tuber size or grading classes, one columns[] entry per class with columns[].size_class; trial_blocks = column blocks are separate trials (sites, seasons, planting dates, experiments); treatment_factor = the columns are levels of a treatment factor that joins the treatment of each record.",
+         "type": "string",
+         "enum": [
+          "variables",
+          "evaluation_times",
+          "size_classes",
+          "trial_blocks",
+          "treatment_factor"
+         ]
+        },
+        "column_factor": {
+         "description": "Name of the factor on the columns ('site', 'planting season', 'seed tuber size', 'N rate', 'with and without fungicide'). Null when column_axis_kind is variables, evaluation_times or size_classes.",
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "main_effects_only": {
+         "description": "true when the table prints only the means of each level of one factor averaged over another (rule MAIN EFFECTS ONLY): every record of the table has is_marginal = true.",
+         "type": "boolean"
+        }
+       }
+      }
+     }
+    },
+    "significance_test": {
+     "description": "Test named for the letters or asterisks, as written ('Tukey a 5%', 'Scott-Knott', 'Duncan', 'teste F'). Null if none printed.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "letters_meaning": {
+     "description": "What the letters or asterisks compare, from the footnote ('minúsculas comparam na coluna, maiúsculas na linha', '* difere da testemunha pelo teste de Dunnett'). Null if the table has no letters or asterisks.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "scale_meaning": {
+     "description": "Scale and direction of scores in this table ('notas de 1 a 9, 9 = sem sintomas de requeima', 'índice de sarna de 0 a 4'), with the page in footnote_summary if it is printed elsewhere. Null when the table has no scores.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "footnote_summary": {
+     "description": "What the footnotes and caption say that matters for the values (means, units, abbreviations, what 'Tr' or 'NR' means, sample unit, planting and harvest dates, size-class limits), at most 15 words quoted. Every footnote is also listed in end_checklist.table_footnotes. Null when the table has no footnote.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "source_inconsistency": {
+     "description": "Conflict that holds for the whole table (caption vs footnote, methods vs number of rows, Portuguese vs English caption), with both versions and pages. Null otherwise.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "checklist_item": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "trial_id",
+    "field",
+    "status",
+    "page"
+   ],
+   "properties": {
+    "trial_id": {
+     "type": "string",
+     "pattern": "^t[0-9]+$"
+    },
+    "field": {
+     "type": "string",
+     "enum": [
+      "location",
+      "affiliation",
+      "season_or_year",
+      "planting_date",
+      "harvest_date",
+      "seed_tuber",
+      "cultivar",
+      "environment",
+      "water_regime",
+      "tillage_system",
+      "previous_crop",
+      "biotic_target",
+      "inoculation_or_infestation",
+      "application_method",
+      "spray_volume",
+      "application_stages",
+      "n_applications",
+      "uniform_sprays",
+      "spacing_or_density",
+      "base_fertilization",
+      "n_reps",
+      "design_notes",
+      "dose_and_unit",
+      "trial_label"
+     ]
+    },
+    "status": {
+     "description": "filled = value found and written; not_printed = searched the whole document (methods, captions, footnotes, text) and it is not there; not_applicable = the field does not apply (dose for a cultivar trial, planting date for a planting-date trial, spray volume for a fertilizer trial, uniform_sprays when the sprays are the treatment).",
+     "type": "string",
+     "enum": [
+      "filled",
+      "not_printed",
+      "not_applicable"
+     ]
+    },
+    "page": {
+     "description": "PDF page where the value was found. Null unless status = filled.",
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 1
+    }
+   }
+  },
+  "footnote_item": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "table_id",
+    "label",
+    "status",
+    "page"
+   ],
+   "properties": {
+    "table_id": {
+     "type": "string",
+     "pattern": "^k[0-9]+$"
+    },
+    "label": {
+     "type": "string",
+     "enum": [
+      "statistic",
+      "transformation",
+      "letters",
+      "scale",
+      "treatment_type",
+      "row_identity",
+      "axes",
+      "columns"
+     ]
+    },
+    "status": {
+     "description": "filled = the document says it and table_level_labels holds it; not_printed = caption, footnotes, methods and text searched and it is not there; not_applicable = the table has no letters, no scores or no transformation.",
+     "type": "string",
+     "enum": [
+      "filled",
+      "not_printed",
+      "not_applicable"
+     ]
+    },
+    "page": {
+     "description": "PDF page where it is printed. Null unless status = filled.",
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 1
+    }
+   }
+  },
+  "end_checklist": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "context",
+    "footnotes",
+    "table_footnotes",
+    "rows",
+    "columns",
+    "doses",
+    "targets",
+    "totals"
+   ],
+   "properties": {
+    "context": {
+     "description": "One entry per trial and per context field in the enum.",
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/checklist_item"
+     }
+    },
+    "footnotes": {
+     "description": "One entry per results, figure_labeled or text table and per label.",
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/footnote_item"
+     }
+    },
+    "table_footnotes": {
+     "description": "Every footnote and note of every results, figure_labeled or text entry, with the columns it went into (rule UNIT FROM HEADER, CAPTION, FOOTNOTES AND METHODS).",
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/table_footnote_item"
+     }
+    },
+    "rows": {
+     "description": "One entry per results, figure_labeled or text table: the axes and the row_identity counts against the records.",
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/row_check_item"
+     }
+    },
+    "columns": {
+     "description": "One entry per results, figure_labeled or text table: the columns[] counts against the records, and the columns whose labels differ from the table.",
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/column_check_item"
+     }
+    },
+    "doses": {
+     "description": "One entry per trial that has product, fertilizer or input treatments with a dose, or uniform sprays (rules DOSE RESOLVED PER TREATMENT, DOSE IN BOTH FORMS, COUNT THE APPLICATIONS, UNIFORM SPRAYS ARE CONTEXT).",
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/dose_check_item"
+     }
+    },
+    "targets": {
+     "description": "One entry per trial (rule TARGET OF THE TRIAL).",
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/target_check_item"
+     }
+    },
+    "totals": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "tables",
+      "data_cells",
+      "transcribed",
+      "skipped_cells",
+      "records",
+      "every_table_closes"
+     ],
+     "properties": {
+      "tables": {
+       "description": "Number of tables[] entries.",
+       "type": "integer",
+       "minimum": 0
+      },
+      "data_cells": {
+       "description": "Sum of tables[].data_cells.",
+       "type": "integer",
+       "minimum": 0
+      },
+      "transcribed": {
+       "description": "Sum of tables[].transcribed. Must equal records.",
+       "type": "integer",
+       "minimum": 0
+      },
+      "skipped_cells": {
+       "description": "Sum of tables[].skipped_cells. data_cells = transcribed + skipped_cells.",
+       "type": "integer",
+       "minimum": 0
+      },
+      "records": {
+       "description": "Length of records[].",
+       "type": "integer",
+       "minimum": 0
+      },
+      "every_table_closes": {
+       "description": "true only when every tables[] entry has data_cells = transcribed + skipped_cells and transcribed equal to its records.",
+       "type": "boolean"
+      }
+     }
+    }
+   }
+  },
+  "record": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "doc_id",
+    "trial_id",
+    "table_id",
+    "column_id",
+    "page",
+    "table_or_figure",
+    "treatment",
+    "treatment_code",
+    "treatment_type",
+    "is_marginal",
+    "cultivar",
+    "active_ingredient_or_input",
+    "dose_and_unit",
+    "dose_source_page",
+    "application_stages",
+    "n_applications",
+    "crop_stage",
+    "crop_stage_refers_to",
+    "biotic_target",
+    "variable",
+    "variable_standardized",
+    "value_kind",
+    "value",
+    "value_as_printed",
+    "dispersion_as_printed",
+    "unit",
+    "statistic",
+    "statistic_stated",
+    "significance_letter",
+    "transformation_stated",
+    "source_inconsistency",
+    "notes"
+   ],
+   "properties": {
+    "doc_id": {
+     "description": "Document id from sources.json (also the PDF file name without .pdf).",
+     "type": "string",
+     "enum": [
+      "menschoy1974-inseticidas-pragas-solo-parte-aerea",
+      "resende1987-consorciacao-adubacao-inseticidas-pragas-brasilia-df",
+      "salles1999-clorpirifos-diabrotica-pelotas-rs",
+      "teodoro2013-genotipos-diabrotica-pelotas-rs",
+      "gomes2002-previsao-requeima-pelotas-sao-lourenco-rs",
+      "medeiros2008-requeima-base-ecologica-pelotas-rs",
+      "wolter2025-resistencia-requeima-genotipos-pelotas-rs",
+      "lourenco2020-pinta-preta-clones-brasilia-df-rio-paranaiba-mg",
+      "baptista2006-solarizacao-biofumigacao-murcha-bacteriana-brasilia-df",
+      "silveira2007-murcha-bacteriana-clones-epidemiologia-rs",
+      "lopes2021-murcha-bacteriana-genotipos-industria-brasilia-df",
+      "daniels2004-resistencia-plrv-pvy-genotipos-pelotas-rs",
+      "daniels2002-degenerescencia-batata-semente-basica-rs-sc",
+      "charchar2007-nematicidas-meloidogyne-batata-brasilia-df",
+      "perez2001-fosforo-fontes-potassio-lagoa-dourada-mg",
+      "nava2017-fosfato-gafsa-cama-aviario-organico-sao-joaquim-sc",
+      "ragassi2009-descompactacao-profunda-solo-piracicaba-sp",
+      "medeiros2002-densidade-hidroponia-minituberculos-pelotas-rs",
+      "souza1991-dessecantes-batata-semente-sao-joaquim-sc",
+      "lucon1999-rizobacterias-erwinia-tuberculos-jaguariuna-sp"
+     ]
+    },
+    "trial_id": {
+     "description": "trial_id of the trials[] entry this value belongs to. Must be one of its table's trial_ids; when the table has one, it is that one.",
+     "type": "string",
+     "pattern": "^t[0-9]+$"
+    },
+    "table_id": {
+     "description": "table_id of the tables[] entry this value was read from. Its table_level_labels apply to this record.",
+     "type": "string",
+     "pattern": "^k[0-9]+$"
+    },
+    "column_id": {
+     "description": "column_id of the columns[] entry of this record's table. The column's variable, unit, stage, statistic, transformation and target apply to this record.",
+     "type": "string",
+     "pattern": "^c[0-9]+$"
+    },
+    "page": {
+     "description": "PDF page number, counted from 1. Same as the page of the table_id entry.",
+     "type": "integer",
+     "minimum": 1
+    },
+    "table_or_figure": {
+     "description": "Label as printed ('Tabela 3', 'Quadro 1', 'Figura 2'), or 'text'. Same as the label of the table_id entry.",
+     "type": "string"
+    },
+    "treatment": {
+     "description": "Row label exactly as printed in that table (cultivar, clone code, product, dose, planting date, seed size, 'Testemunha', 'Média'), footnote markers included. For a factorial cell, and for a column that is a level of a treatment factor, the levels joined with ' x ' in the table's order ('Agata x 150 kg/ha de N', 'Asterix x sem fungicida').",
+     "type": "string"
+    },
+    "treatment_code": {
+     "description": "Code printed in the row ('T3', '5', 'C-1750-15-95', 'CL 02-05'), as written, following table_level_labels.row_identity. A released cultivar's name ('BRS Clara', 'Agata', 'Atlantic', 'Cristal') is not a code; an ordinal number before a name is not a code. Null only when the row prints no code.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "treatment_type": {
+     "description": "Null = as table_level_labels.treatment_type, for ordinary rows only. Every row listed in row_identity.special_rows carries its class here, even when it looks obvious (Testemunha is control, a Média over two factors is combination, a program row in a table of single fungicides is spray_program), and every record of a main-effects-only table carries the class of its factor.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "genotype",
+      "fungicide",
+      "seed_tuber_treatment",
+      "insecticide",
+      "nematicide",
+      "spray_program",
+      "biological",
+      "natural_enemy",
+      "botanical",
+      "resistance_inducer",
+      "biostimulant_or_inoculant",
+      "herbicide",
+      "fertilizer",
+      "liming_gypsum",
+      "organic_amendment",
+      "growth_regulator",
+      "water_management",
+      "planting_date",
+      "seed_tuber",
+      "spacing_density",
+      "rotation_tillage",
+      "cultural",
+      "haulm_desiccation",
+      "storage",
+      "inoculation_infestation",
+      "pathogen_isolate",
+      "survey",
+      "control",
+      "combination",
+      "other",
+      null
+     ]
+    },
+    "is_marginal": {
+     "description": "true for marginal means or totals printed in the table (Média row or column), and for every record of a table with row_identity.axes.main_effects_only = true.",
+     "type": "boolean"
+    },
+    "cultivar": {
+     "description": "Potato cultivar of this record as written, only when it varies inside the trial and the row or the key gives a name. A clone known only by its code leaves this null (the code is in treatment_code). Null when trials[].cultivar applies.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "active_ingredient_or_input": {
+     "description": "Product, organism, fertilizer source or input of this treatment in the fixed form of rule FIXED FORM FOR PRODUCT AND DOSE: active ingredient first, commercial name in parentheses ('mancozebe (Dithane PM)', 'metalaxil-M + mancozebe (Ridomil Gold MZ)', 'imidacloprido (Confidor)', 'cloreto de potássio', 'Trichoderma harzianum'), taken from the treatment table or methods when the results table gives a code. Only what this treatment received; never a uniform spray of the whole trial. Null for checks, genotypes and non-product treatments.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "dose_and_unit": {
+     "description": "Dose of this treatment only, resolved from the treatment table or methods (rules DOSE RESOLVED PER TREATMENT and DOSE IN BOTH FORMS), as 'value unit' per product in the order of active_ingredient_or_input, ' + ' for a mixture, '; ' between commercial-product and active-ingredient doses when both are printed ('2,0 kg p.c./ha; 1.600 g i.a./ha', '150 kg/ha de K2O'). Never the spray volume, never a uniform spray. Null only for checks, non-product treatments or when printed nowhere.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "dose_source_page": {
+     "description": "PDF page where the dose is printed; when the two forms come from different places, the page of the treatment table. Null when dose_and_unit is null.",
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 1
+    },
+    "application_stages": {
+     "description": "Timing of this treatment, only when it differs from trials[].application_stages ('aos 30, 40 e 50 DAP', 'no plantio', 'na amontoa'), in our own words when long. Never the inoculation timing, never a uniform spray. Null when the trial value applies.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "n_applications": {
+     "description": "Number of applications of this treatment when it differs from the trial: printed as a number, or counted from the treatment table or calendar that marks the dates or stages per treatment (rule COUNT THE APPLICATIONS); and 0 for an untreated check in a trial whose treated plots have a count (rule CHECK AND n_applications). Never counts inoculations or uniform sprays. Null otherwise.",
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 0
+    },
+    "crop_stage": {
+     "description": "Null = as the column (columns[].crop_stage). Filled only when this one cell has its own time, different from its column (a survey row sampled on its own date). Never invented: rule NEVER INVENT A STAGE.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "crop_stage_refers_to": {
+     "description": "Null = as the column. Filled together with a record-level crop_stage.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "harvest",
+      "evaluation",
+      "growth_stage",
+      "application",
+      "planting",
+      "emergence",
+      "tuber_initiation",
+      "flowering",
+      "haulm_desiccation",
+      "storage",
+      "inoculation",
+      "infestation",
+      "other",
+      null
+     ]
+    },
+    "biotic_target": {
+     "description": "Null = as the column (columns[].biotic_target). Filled only when this row measures something else than its column says.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "late_blight",
+      "early_blight",
+      "other_foliar_fungal",
+      "black_scurf",
+      "fusarium_dry_rot_or_wilt",
+      "verticillium_wilt",
+      "common_scab",
+      "powdery_scab",
+      "silver_scurf_or_black_dot",
+      "other_fungal_disease",
+      "bacterial_wilt",
+      "blackleg_soft_rot",
+      "pvy",
+      "plrv",
+      "virus_complex",
+      "other_virus",
+      "tuber_moth",
+      "aphids",
+      "diabrotica",
+      "whitefly",
+      "leafminer",
+      "thrips",
+      "soil_pests",
+      "other_pest",
+      "nematodes",
+      "weeds",
+      "physiological_disorder",
+      "abiotic_disorder",
+      "storage_rot",
+      "multiple",
+      "none",
+      null
+     ]
+    },
+    "variable": {
+     "description": "Null = the column header (columns[].header_as_printed). Filled only when a cell needs its own wording: a split column ('RG / PH' split in two records), or a transposed table read cell by cell.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "variable_standardized": {
+     "description": "Null = as the column. Filled only together with a record-level variable. Vocabulary. Disease, with the disease in biotic_target and the organ in plant_part: disease_severity_pct = severity as % of leaf, canopy, stem or tuber surface area (requeima and pinta-preta on the James or Horsfall-Barratt scale read as %, % of tuber surface with sarna); disease_score = disease rated on a scale (notas 1 a 9, 0 a 5, sarna index classes printed as a number); disease_incidence_pct = % plants, stems, leaflets or tubers with symptoms (murcha-bacteriana = % wilted plants; canela-preta = % plants; PVY or PLRV by symptoms = % plants; sarna or podridão = % tubers); disease_index = an index that combines incidence and severity printed by the authors (índice de sarna, índice de doença, índice de McKinney); disease_audpc = AACPD/AUDPC or its relative or standardized form (AACPDr, AUDPC per day); disease_reaction_class = R, MR, MS, S, resistente, suscetível (value_kind class); reaction_class_share_pct = % of genotypes, isolates or plants in one reaction class; disease_component = latent period, incubation, lesion number or size, sporulation, infection efficiency; seed_tuber_infection_pct = % seed tubers or tuber samples infected or contaminated by a pathogen in a lab test (latent Ralstonia, Pectobacterium counts in a seed lot); pathogen_in_vitro = mycelial growth, inhibition, spore germination in plates; pathogen_population = inoculum, CFU or oospore counts, isolate frequencies, mating types; virus_detection = % plants or tubers positive in ELISA or PCR, absorbance, titer. Pests, with the stage in organism_stage and the sample unit in unit: pest_density = aphids per leaf or plant, larvae per tuber or plant, adults per plant or per meter; pest_infestation_pct = % plants or leaves with the pest; pest_damage_pct = % tubers, leaves or plants damaged by a pest (tubers bored by traça or larva-alfinete, leaves mined), by number or mass, say which in notes; pest_damage_other = damage by a pest as a count, a mass, a score or holes per tuber; trap_catch = insects per trap per period (Moericke yellow pan, pheromone traps for the tuber moth); pest_mortality_pct = mortality as printed in a bioassay; control_efficacy_pct = % control or efficacy (Abbott, Henderson-Tilton) or % reduction of a pest or disease printed by the authors (statistic relative_to_check); natural_enemy_measure = parasitism %, predator and parasitoid counts; pest_biology = development, survival, fecundity of a pest on a genotype or treatment; pest_reaction_class = class of resistance to a pest (value_kind class); nematode_measure = galls, eggs, juveniles, reproduction factor, % tubers with galls. Yield and tubers: tuber_yield_total_area = total tuber yield per area or plot in the printed unit (t/ha, kg/ha, kg/parcela, sc/ha); tuber_yield_marketable_area = yield of marketable or commercial tubers (produtividade comercial, tubérculos comerciáveis, graúdos + médios when the document calls them marketable), with the authors' threshold in columns[].notes; tuber_yield_nonmarketable_area = yield of non-marketable tubers (refugo, descarte, miúdos when called non-marketable); tuber_yield_plant = tuber mass per plant, per hill, per pot or per stem; tuber_yield_size_class = yield of one size or grading class (Classe especial, Primeira, Segunda, graúda, média, miúda, > 45 mm, tipo III of a seed crop), with the class in columns[].size_class; tuber_size_class_share_pct = % of tubers by number or by mass in one class (say which in notes, class in size_class); tuber_number = tubers per plant, per hill, per m2, per plot or per ha, total or in one class (class in size_class); tuber_mean_mass = mean tuber mass (g/tubérculo); relative_yield_pct = yield as % of the check or of the best treatment (statistic relative_to_check); yield_loss_or_gain = yield loss, damage or gain against a check, in % or yield units; dry_matter = tuber dry matter % or dry mass content (matéria seca, teor de MS); specific_gravity = densidade específica or peso específico of tubers (printed without unit or in g/cm3); tuber_chemistry = starch, reducing sugars, protein, vitamin C, glycoalkaloids, nitrate in tubers; processing_quality = chip or fry color, frying score, cooking type, after-cooking darkening, oil content of chips; tuber_defects = physiological or mechanical defects (coração-oco, embonecamento or second growth, rachaduras, esverdeamento, deformed tubers, internal spots), as % or score; tuber_physical = tuber shape, length-to-width ratio, eye depth, skin color or texture scores; tuber_sprouting_dormancy = dormancy period, days to sprouting, sprouts per tuber, sprout length, physiological age measures of seed tubers; storage_loss = mass loss, rot or shrink in storage as %. Plant, seed, soil and other: stand_or_emergence = emergence %, days to emergence, final stand, plants per plot, dead plants not attributed to a pest or disease; stems_per_plant = haste or main stems per plant or per hill; plant_trait = plant height, cycle, days to maturity or senescence, vigor score, SPAD, NDVI, leaf area; plant_biomass = haulm, shoot or root dry or fresh mass, harvest index; canopy_cover = % ground cover by the canopy; tissue_nutrient = nutrient content or uptake in leaves, petioles, haulm or tubers; nutrient_use_efficiency = efficiency indices printed by the authors; optimum_dose = dose of maximum technical or economic efficiency printed by the authors, and the yield they expect at it; soil_chemistry = soil analysis after the trial that compares treatments; soil_physical = bulk density, porosity, penetration resistance; soil_biology = microbial biomass, respiration, enzymes; soil_temperature = soil temperature measured per treatment; water_use = irrigation depth, evapotranspiration, water use efficiency; phytotoxicity = crop injury score or %; weed_measure = weed density, biomass or control %; economic = cost, revenue, profit, benefit/cost, number of sprays saved; other = anything else (say what in notes). other should stay under 1%.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "disease_severity_pct",
+      "disease_score",
+      "disease_incidence_pct",
+      "disease_index",
+      "disease_audpc",
+      "disease_reaction_class",
+      "reaction_class_share_pct",
+      "disease_component",
+      "seed_tuber_infection_pct",
+      "pathogen_in_vitro",
+      "pathogen_population",
+      "virus_detection",
+      "pest_density",
+      "pest_infestation_pct",
+      "pest_damage_pct",
+      "pest_damage_other",
+      "trap_catch",
+      "pest_mortality_pct",
+      "control_efficacy_pct",
+      "natural_enemy_measure",
+      "pest_biology",
+      "pest_reaction_class",
+      "nematode_measure",
+      "tuber_yield_total_area",
+      "tuber_yield_marketable_area",
+      "tuber_yield_nonmarketable_area",
+      "tuber_yield_plant",
+      "tuber_yield_size_class",
+      "tuber_size_class_share_pct",
+      "tuber_number",
+      "tuber_mean_mass",
+      "relative_yield_pct",
+      "yield_loss_or_gain",
+      "dry_matter",
+      "specific_gravity",
+      "tuber_chemistry",
+      "processing_quality",
+      "tuber_defects",
+      "tuber_physical",
+      "tuber_sprouting_dormancy",
+      "storage_loss",
+      "stand_or_emergence",
+      "stems_per_plant",
+      "plant_trait",
+      "plant_biomass",
+      "canopy_cover",
+      "tissue_nutrient",
+      "nutrient_use_efficiency",
+      "optimum_dose",
+      "soil_chemistry",
+      "soil_physical",
+      "soil_biology",
+      "soil_temperature",
+      "water_use",
+      "phytotoxicity",
+      "weed_measure",
+      "economic",
+      "other",
+      null
+     ]
+    },
+    "value_kind": {
+     "description": "numeric for every number; class for reaction classes, category lists, traces ('Tr') and dates printed as values; illegible for a data cell that cannot be read with confidence (value null, doubt in notes).",
+     "type": "string",
+     "enum": [
+      "numeric",
+      "class",
+      "illegible"
+     ]
+    },
+    "value": {
+     "description": "The number from the cell, decimal point. Null only when value_kind is class or illegible. Only changes allowed vs value_as_printed: decimal comma to point, removal of thousands separators, dropping a leading zero. A sign printed or stated for parentheses is kept (rule PRINTED SIGNS).",
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "value_as_printed": {
+     "description": "The cell exactly as printed, without letters, asterisks, footnote markers or dispersion term ('2.920', '45,3', '(26,91)', '05', 'Tr', 'MS', '9/set'). The best reading or '' when value_kind is illegible.",
+     "type": "string"
+    },
+    "dispersion_as_printed": {
+     "description": "Dispersion term attached to this value as printed ('± 0,3', '(2,1)', a standard error printed next to the mean). Null if none.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "unit": {
+     "description": "Null = as the column (columns[].unit). Filled only when this cell prints its own unit.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "statistic": {
+     "description": "Null = as the column, then as the table. Filled only when this row differs from both ('Média' row in a table of single values, a 'Total' row).",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "mean",
+      "relative_to_check",
+      "total",
+      "median",
+      "single_value",
+      "percentage_of_total",
+      "other",
+      null
+     ]
+    },
+    "statistic_stated": {
+     "description": "Null = as the column, then as the table. Filled only together with a record-level statistic.",
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "significance_letter": {
+     "description": "Letter(s) or asterisk(s) printed with the value, exactly as printed ('a', 'AB', 'a A', 'bc', '*', '**', 'n.s.' when printed on the value). What they mean goes once in table_level_labels.letters_meaning. Null if none.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "transformation_stated": {
+     "description": "Null = as the column, then as the table. Filled only when this cell states its own transformation.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "source_inconsistency": {
+     "description": "Conflict about this value only (text vs table for this cell), with both versions and pages. Conflicts about the whole table or trial go there, not here. Null otherwise.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "notes": {
+     "description": "What the checker needs: page of the treatment key for coded rows, footnote marker on the value, the reason a label is overridden, the spray volume when it varies by treatment, the quoted sentence for 'text' values (at most 15 words), reading doubts. Never a value that should be its own record.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "row_check_item": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "table_id",
+    "column_axis_kind",
+    "main_effects_only",
+    "rows_printed",
+    "rows_with_code",
+    "rows_with_name",
+    "records",
+    "records_with_treatment_code",
+    "records_with_name",
+    "records_marginal",
+    "records_of_special_rows",
+    "records_of_special_rows_with_type",
+    "rows_match"
+   ],
+   "properties": {
+    "table_id": {
+     "type": "string",
+     "pattern": "^k[0-9]+$"
+    },
+    "column_axis_kind": {
+     "description": "Copied from row_identity.axes.",
+     "type": "string",
+     "enum": [
+      "variables",
+      "evaluation_times",
+      "size_classes",
+      "trial_blocks",
+      "treatment_factor"
+     ]
+    },
+    "main_effects_only": {
+     "description": "Copied from row_identity.axes.",
+     "type": "boolean"
+    },
+    "rows_printed": {
+     "description": "Copied from row_identity.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "rows_with_code": {
+     "description": "Copied from row_identity.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "rows_with_name": {
+     "description": "Copied from row_identity.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records": {
+     "description": "Records with this table_id.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records_with_treatment_code": {
+     "description": "Records of this table with treatment_code not null.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records_with_name": {
+     "description": "Records of this table with cultivar or active_ingredient_or_input not null.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records_marginal": {
+     "description": "Records of this table with is_marginal = true. Equals records when main_effects_only is true.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records_of_special_rows": {
+     "description": "Records whose treatment is one of row_identity.special_rows.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records_of_special_rows_with_type": {
+     "description": "Records of special rows that carry treatment_type explicitly. Must equal records_of_special_rows.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "rows_match": {
+     "description": "true only when every record of a coded row has treatment_code, every record of a named row has its name, every record of a special row carries its class explicitly, and records_marginal = records when main_effects_only is true.",
+     "type": "boolean"
+    }
+   }
+  },
+  "column": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "column_id",
+    "header_as_printed",
+    "variable_standardized",
+    "unit",
+    "unit_source_place",
+    "organism_stage",
+    "plant_part",
+    "factor_level",
+    "size_class",
+    "crop_stage",
+    "crop_stage_refers_to",
+    "crop_stage_source_page",
+    "crop_stage_source_place",
+    "crop_stage_status",
+    "statistic",
+    "statistic_stated",
+    "transformation_stated",
+    "biotic_target",
+    "notes"
+   ],
+   "properties": {
+    "column_id": {
+     "description": "Short id unique inside the table: 'c1', 'c2', ... in printed order. One entry per measured column; when the table is printed transposed (variables as rows), one entry per variable row. A column that repeats under each trial block ('Safra 1 / Safra 2') is one entry per block.",
+     "type": "string",
+     "pattern": "^c[0-9]+$"
+    },
+    "header_as_printed": {
+     "description": "Column header exactly as printed, joined with ' / ' from the top header down ('Produtividade (t/ha) / Comercial', 'Severidade de requeima (%) / 70 DAP', 'Pelotas / Total'). This is the record's variable unless the record says otherwise.",
+     "type": "string"
+    },
+    "variable_standardized": {
+     "description": "Standardized variable of this column (same enum as the record). Inherited by every record of the column.",
+     "type": "string",
+     "enum": [
+      "disease_severity_pct",
+      "disease_score",
+      "disease_incidence_pct",
+      "disease_index",
+      "disease_audpc",
+      "disease_reaction_class",
+      "reaction_class_share_pct",
+      "disease_component",
+      "seed_tuber_infection_pct",
+      "pathogen_in_vitro",
+      "pathogen_population",
+      "virus_detection",
+      "pest_density",
+      "pest_infestation_pct",
+      "pest_damage_pct",
+      "pest_damage_other",
+      "trap_catch",
+      "pest_mortality_pct",
+      "control_efficacy_pct",
+      "natural_enemy_measure",
+      "pest_biology",
+      "pest_reaction_class",
+      "nematode_measure",
+      "tuber_yield_total_area",
+      "tuber_yield_marketable_area",
+      "tuber_yield_nonmarketable_area",
+      "tuber_yield_plant",
+      "tuber_yield_size_class",
+      "tuber_size_class_share_pct",
+      "tuber_number",
+      "tuber_mean_mass",
+      "relative_yield_pct",
+      "yield_loss_or_gain",
+      "dry_matter",
+      "specific_gravity",
+      "tuber_chemistry",
+      "processing_quality",
+      "tuber_defects",
+      "tuber_physical",
+      "tuber_sprouting_dormancy",
+      "storage_loss",
+      "stand_or_emergence",
+      "stems_per_plant",
+      "plant_trait",
+      "plant_biomass",
+      "canopy_cover",
+      "tissue_nutrient",
+      "nutrient_use_efficiency",
+      "optimum_dose",
+      "soil_chemistry",
+      "soil_physical",
+      "soil_biology",
+      "soil_temperature",
+      "water_use",
+      "phytotoxicity",
+      "weed_measure",
+      "economic",
+      "other"
+     ]
+    },
+    "unit": {
+     "description": "Unit as printed for this column in the header, caption, footnotes, methods or text ('t/ha', 'kg/parcela', 'g/planta', 'tubérculos/planta', '%', 'g/cm3', 'pulgões/folha'), read from wherever it is printed (rule UNIT FROM HEADER, CAPTION, FOOTNOTES AND METHODS) and with unit_source_place saying where. Null if none printed anywhere (specific gravity is often printed without unit).",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "unit_source_place": {
+     "description": "Where the unit was read: header, caption, footnote, methods, text, or not_printed when it is printed nowhere. Methods count: a yield column headed 'Produtividade' whose unit is only in the methods ('expressa em t/ha') takes it from there.",
+     "type": "string",
+     "enum": [
+      "header",
+      "caption",
+      "footnote",
+      "methods",
+      "text",
+      "not_printed"
+     ]
+    },
+    "organism_stage": {
+     "description": "Pest stage counted in this column: egg, larva, nymph, pupa, adult, alate (winged aphids), apterous (wingless aphids, nymphs and adults), mixed (all stages together), not_applicable (disease, yield, tuber and plant columns). Null when the column counts an organism and the document does not say the stage.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "egg",
+      "larva",
+      "nymph",
+      "pupa",
+      "adult",
+      "alate",
+      "apterous",
+      "mixed",
+      "not_applicable",
+      null
+     ]
+    },
+    "plant_part": {
+     "description": "Where a disease, pest or damage column was measured: leaves (leaflets, not specified), upper_leaves, lower_leaves, stem (haste, canela), canopy (the whole foliage rated as % of area, the usual reading of requeima and pinta-preta in a plot), tuber (tuber surface or the tuber as a unit: sarna, tubers bored by traça, % rotten tubers), tuber_flesh (internal defects, necrosis, vascular ring), seed_tuber (the planted tuber or a seed lot), root, whole_plant (wilted plants, plants with virus symptoms), plot (rated per plot or area). not_applicable for yield, tuber quality, plant trait and economic columns. Null when a disease or pest column does not print the organ.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "leaves",
+      "upper_leaves",
+      "lower_leaves",
+      "stem",
+      "canopy",
+      "tuber",
+      "tuber_flesh",
+      "seed_tuber",
+      "root",
+      "whole_plant",
+      "plot",
+      "not_applicable",
+      null
+     ]
+    },
+    "factor_level": {
+     "description": "When the columns are levels of a treatment factor (row_identity.axes.column_axis_kind = treatment_factor), the level this column holds as printed ('Com fungicida', 'Sem fungicida', '150 kg/ha', 'Semente tipo II'), joined to each record's treatment. Null otherwise.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "size_class": {
+     "description": "Tuber size or grading class of this column as printed, with its limits when printed ('Especial (> 45 mm)', 'Primeira', 'graúda', 'Tipo III', 'diâmetro 33-45 mm', 'refugo'). Required for tuber_yield_size_class and tuber_size_class_share_pct columns and for a tuber_number column of one class; null otherwise.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "crop_stage": {
+     "description": "When this column was measured, as printed in its header, the caption, a footnote, the methods or the text ('45 DAP', '7 dias após a 3ª aplicação', 'no início da tuberização', 'aos 90 dias após o plantio', 'colheita aos 110 DAP', 'após 120 dias de armazenamento a 8 °C'). Filled only for a column whose time the document prints; null with crop_stage_status not_printed or not_applicable. Yield and tuber-quality columns take a harvest stage only when the harvest is printed with a date, a day count or a stage (rule NEVER INVENT A STAGE).",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "crop_stage_refers_to": {
+     "description": "What crop_stage counts from or means: harvest = measured at harvest, only when the document prints the harvest with a date, a day count or a stage ('colheita aos 110 dias após o plantio', 'colhida em 12/12/2003', 'na colheita, 20 dias após a dessecação'); evaluation = a rating date not tied to an event; growth_stage = a phenological stage named ('início da tuberização', 'pleno florescimento', 'senescência', 'fechamento das linhas'); application = days after a spray or a seed-tuber treatment; planting = days after planting (DAP); emergence = days after emergence (DAE); tuber_initiation = days after tuber initiation; flowering = days after flowering; haulm_desiccation = days after haulm desiccation or killing; storage = days or months of storage; inoculation = days after inoculation; infestation = days after an artificial infestation or release; other. Null only when crop_stage is null.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "harvest",
+      "evaluation",
+      "growth_stage",
+      "application",
+      "planting",
+      "emergence",
+      "tuber_initiation",
+      "flowering",
+      "haulm_desiccation",
+      "storage",
+      "inoculation",
+      "infestation",
+      "other",
+      null
+     ]
+    },
+    "crop_stage_source_page": {
+     "description": "PDF page where crop_stage was read. Null only when crop_stage is null.",
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 1
+    },
+    "crop_stage_source_place": {
+     "description": "Where the time was read: header, caption, footnote, methods, text. Null only when crop_stage is null.",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "header",
+      "caption",
+      "footnote",
+      "methods",
+      "text",
+      null
+     ]
+    },
+    "crop_stage_status": {
+     "description": "filled = crop_stage holds the printed time; not_printed = header, caption, footnotes, methods and text searched and the time of this column is nowhere; not_applicable = the column has no time (a lab assay with no age, a class list, an economic column). Never left out.",
+     "type": "string",
+     "enum": [
+      "filled",
+      "not_printed",
+      "not_applicable"
+     ]
+    },
+    "statistic": {
+     "description": "Null = as table_level_labels.statistic. Filled when this column differs ('Total' column in a table of means, an efficacy column in a table of counts is relative_to_check).",
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "mean",
+      "relative_to_check",
+      "total",
+      "median",
+      "single_value",
+      "percentage_of_total",
+      "other",
+      null
+     ]
+    },
+    "statistic_stated": {
+     "description": "Null = as the table. Filled together with a column-level statistic, or when the column carries its own footnote saying what it is.",
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "transformation_stated": {
+     "description": "Transformation stated for this column only ('dados transformados em raiz de x + 0,5' on the count columns, none on yield). Null = as table_level_labels.transformation_stated.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "biotic_target": {
+     "description": "Pest, disease or disorder this column measures (a requeima severity or AUDPC column is late_blight, a sarna index is common_scab, % tubers bored by traça is tuber_moth, % plants with mosaic is pvy). For yield, tuber, plant and economic columns, the trial's target (rule TARGET OF THE TRIAL), never none when the trial rates a pest or disease. Inherited by every record of the column.",
+     "type": "string",
+     "enum": [
+      "late_blight",
+      "early_blight",
+      "other_foliar_fungal",
+      "black_scurf",
+      "fusarium_dry_rot_or_wilt",
+      "verticillium_wilt",
+      "common_scab",
+      "powdery_scab",
+      "silver_scurf_or_black_dot",
+      "other_fungal_disease",
+      "bacterial_wilt",
+      "blackleg_soft_rot",
+      "pvy",
+      "plrv",
+      "virus_complex",
+      "other_virus",
+      "tuber_moth",
+      "aphids",
+      "diabrotica",
+      "whitefly",
+      "leafminer",
+      "thrips",
+      "soil_pests",
+      "other_pest",
+      "nematodes",
+      "weeds",
+      "physiological_disorder",
+      "abiotic_disorder",
+      "storage_rot",
+      "multiple",
+      "none"
+     ]
+    },
+    "notes": {
+     "description": "Formula of an efficacy or relative column (Abbott, from AUDPC, difference of two columns), the marketable threshold ('tubérculos > 33 mm'), whether a class share is by number or mass, what a header abbreviation means and the page of its key, what a dispersion term is; at most 15 words quoted. Null otherwise.",
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "column_check_item": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "table_id",
+    "columns",
+    "columns_stage_filled",
+    "columns_stage_not_printed",
+    "columns_stage_not_applicable",
+    "columns_harvest_stage",
+    "columns_unit_from_methods_or_text",
+    "columns_unit_not_printed",
+    "methods_searched",
+    "columns_differing_from_table",
+    "records",
+    "records_with_valid_column",
+    "columns_match"
+   ],
+   "properties": {
+    "table_id": {
+     "type": "string",
+     "pattern": "^k[0-9]+$"
+    },
+    "columns": {
+     "description": "Length of the table's columns[].",
+     "type": "integer",
+     "minimum": 0
+    },
+    "columns_stage_filled": {
+     "description": "Columns with crop_stage_status filled.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "columns_stage_not_printed": {
+     "description": "Columns with crop_stage_status not_printed.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "columns_stage_not_applicable": {
+     "description": "Columns with crop_stage_status not_applicable. The three counts add up to columns.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "columns_harvest_stage": {
+     "description": "Columns with crop_stage_refers_to harvest. Each one has a printed harvest date, day count or stage in crop_stage (rule NEVER INVENT A STAGE).",
+     "type": "integer",
+     "minimum": 0
+    },
+    "columns_unit_from_methods_or_text": {
+     "description": "Columns whose unit_source_place is methods or text.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "columns_unit_not_printed": {
+     "description": "Columns with unit_source_place not_printed. Each was searched in header, caption, footnotes, methods and text.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "methods_searched": {
+     "description": "true when the methods and the text were read for the unit and the time of every column, not only the header and footnotes.",
+     "type": "boolean"
+    },
+    "columns_differing_from_table": {
+     "description": "column_ids whose statistic, statistic_stated or transformation_stated differ from the table and are written on the column.",
+     "type": "array",
+     "items": {
+      "type": "string",
+      "pattern": "^c[0-9]+$"
+     }
+    },
+    "records": {
+     "description": "Records with this table_id.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records_with_valid_column": {
+     "description": "Records of this table whose column_id is one of the table's columns. Must equal records.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "columns_match": {
+     "description": "true only when the three stage counts add up to columns, every record has a valid column_id, methods_searched is true and every harvest-stage column prints the harvest.",
+     "type": "boolean"
+    }
+   }
+  },
+  "table_footnote_item": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "table_id",
+    "marker",
+    "page",
+    "content_kind",
+    "summary",
+    "applied_to"
+   ],
+   "properties": {
+    "table_id": {
+     "type": "string",
+     "pattern": "^k[0-9]+$"
+    },
+    "marker": {
+     "description": "The footnote marker as printed ('1', '(2)', 'a', '*', 'Tr'), or 'caption' or 'note' for a note printed above or below the table without a marker.",
+     "type": "string"
+    },
+    "page": {
+     "type": "integer",
+     "minimum": 1
+    },
+    "content_kind": {
+     "description": "What the footnote gives.",
+     "type": "string",
+     "enum": [
+      "unit",
+      "scale",
+      "statistic",
+      "letters",
+      "abbreviation",
+      "transformation",
+      "trial_context",
+      "dose",
+      "formula",
+      "other"
+     ]
+    },
+    "summary": {
+     "description": "What it says, in our own words or at most 15 words quoted.",
+     "type": "string"
+    },
+    "applied_to": {
+     "description": "column_ids it went into, 'table' when it went to table_level_labels, 'trial' when it went to trials[], 'none' when it holds nothing for the values (say why in summary).",
+     "type": "array",
+     "minItems": 1,
+     "items": {
+      "type": "string",
+      "pattern": "^(c[0-9]+|table|trial|none)$"
+     }
+    }
+   }
+  },
+  "dose_check_item": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "trial_id",
+    "dose_source_pages",
+    "product_treatments",
+    "records_with_product",
+    "records_with_dose",
+    "multi_dose_cells",
+    "multi_dose_cells_resolved",
+    "both_forms_printed",
+    "records_with_both_forms",
+    "application_count_source",
+    "spray_volume_kept_out",
+    "uniform_sprays_kept_out",
+    "doses_match"
+   ],
+   "properties": {
+    "trial_id": {
+     "type": "string",
+     "pattern": "^t[0-9]+$"
+    },
+    "dose_source_pages": {
+     "description": "Pages where the doses of this trial are printed.",
+     "type": "array",
+     "items": {
+      "type": "integer",
+      "minimum": 1
+     }
+    },
+    "product_treatments": {
+     "description": "Treatments of this trial that received a product, fertilizer or input with a dose (checks excluded).",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records_with_product": {
+     "description": "Records of this trial with active_ingredient_or_input not null.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "records_with_dose": {
+     "description": "Records of this trial with dose_and_unit not null.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "multi_dose_cells": {
+     "description": "Cells of a treatment table or methods list that hold the doses of several treatments, or several doses of one product used by different treatments.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "multi_dose_cells_resolved": {
+     "description": "Of those, how many were resolved so that each treatment's records carry only its own product and dose. Must equal multi_dose_cells.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "both_forms_printed": {
+     "description": "true when the treatment table or methods print the dose of the products both as commercial product and as active ingredient (rule DOSE IN BOTH FORMS).",
+     "type": "boolean"
+    },
+    "records_with_both_forms": {
+     "description": "Records of this trial whose dose_and_unit holds both forms. Equals records_with_dose when both_forms_printed is true.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "application_count_source": {
+     "description": "Where n_applications of this trial comes from: printed = a number in the text or table; counted_from_design = counted from a treatment table or calendar that marks dates or stages per treatment (rule COUNT THE APPLICATIONS); varies_by_treatment_counted = each treatment counted on its records; not_printed = no number and no countable list; not_applicable = no applied treatments.",
+     "type": "string",
+     "enum": [
+      "printed",
+      "counted_from_design",
+      "varies_by_treatment_counted",
+      "not_printed",
+      "not_applicable"
+     ]
+    },
+    "spray_volume_kept_out": {
+     "description": "true when no dose_and_unit of this trial contains the spray volume.",
+     "type": "boolean"
+    },
+    "uniform_sprays_kept_out": {
+     "description": "true when no record of this trial carries a uniform spray in active_ingredient_or_input, dose_and_unit, application_stages or n_applications (rule UNIFORM SPRAYS ARE CONTEXT).",
+     "type": "boolean"
+    },
+    "doses_match": {
+     "description": "true only when every record of a product treatment has its product and its own dose (or the dose is printed nowhere for it), multi_dose_cells_resolved = multi_dose_cells, both forms are carried when printed, spray_volume_kept_out and uniform_sprays_kept_out are true, and application_count_source is not counted_from_design with records left without their count.",
+     "type": "boolean"
+    }
+   }
+  },
+  "target_check_item": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "trial_id",
+    "damage_or_disease_rated",
+    "rated_targets",
+    "rated_pages",
+    "trial_biotic_target",
+    "production_columns",
+    "production_columns_with_trial_target",
+    "targets_match"
+   ],
+   "properties": {
+    "trial_id": {
+     "type": "string",
+     "pattern": "^t[0-9]+$"
+    },
+    "damage_or_disease_rated": {
+     "description": "Does the document rate any pest, disease, damage or disorder in this trial (counts, severity, incidence, scores, AUDPC, damaged or rotten tubers, tuber defects when the trial is about them)? Plant height and tuber shape rated as traits do not count.",
+     "type": "boolean"
+    },
+    "rated_targets": {
+     "description": "The targets rated in this trial, from the biotic_target enum. Empty when nothing is rated.",
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "late_blight",
+       "early_blight",
+       "other_foliar_fungal",
+       "black_scurf",
+       "fusarium_dry_rot_or_wilt",
+       "verticillium_wilt",
+       "common_scab",
+       "powdery_scab",
+       "silver_scurf_or_black_dot",
+       "other_fungal_disease",
+       "bacterial_wilt",
+       "blackleg_soft_rot",
+       "pvy",
+       "plrv",
+       "virus_complex",
+       "other_virus",
+       "tuber_moth",
+       "aphids",
+       "diabrotica",
+       "whitefly",
+       "leafminer",
+       "thrips",
+       "soil_pests",
+       "other_pest",
+       "nematodes",
+       "weeds",
+       "physiological_disorder",
+       "abiotic_disorder",
+       "storage_rot",
+       "multiple",
+       "none"
+      ]
+     }
+    },
+    "rated_pages": {
+     "description": "Pages where those ratings are printed.",
+     "type": "array",
+     "items": {
+      "type": "integer",
+      "minimum": 1
+     }
+    },
+    "trial_biotic_target": {
+     "description": "trials[].biotic_target as written. Not none when damage_or_disease_rated is true.",
+     "type": "string",
+     "enum": [
+      "late_blight",
+      "early_blight",
+      "other_foliar_fungal",
+      "black_scurf",
+      "fusarium_dry_rot_or_wilt",
+      "verticillium_wilt",
+      "common_scab",
+      "powdery_scab",
+      "silver_scurf_or_black_dot",
+      "other_fungal_disease",
+      "bacterial_wilt",
+      "blackleg_soft_rot",
+      "pvy",
+      "plrv",
+      "virus_complex",
+      "other_virus",
+      "tuber_moth",
+      "aphids",
+      "diabrotica",
+      "whitefly",
+      "leafminer",
+      "thrips",
+      "soil_pests",
+      "other_pest",
+      "nematodes",
+      "weeds",
+      "physiological_disorder",
+      "abiotic_disorder",
+      "storage_rot",
+      "multiple",
+      "none"
+     ]
+    },
+    "production_columns": {
+     "description": "Columns of this trial that measure yield, tubers, plant or economics rather than a pest or disease.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "production_columns_with_trial_target": {
+     "description": "Of those, how many carry the trial's target in columns[].biotic_target. Must equal production_columns.",
+     "type": "integer",
+     "minimum": 0
+    },
+    "targets_match": {
+     "description": "true only when trial_biotic_target is not none whenever damage_or_disease_rated is true, and production_columns_with_trial_target = production_columns.",
+     "type": "boolean"
+    }
+   }
+  }
+ },
+ "changes_from_trigo_v7": [
+  "Uniform sprays are context: new trial field uniform_sprays and rule UNIFORM SPRAYS ARE CONTEXT. Pesticides applied the same way to every plot of a trial whose treatment is something else stay out of the records (no product, dose, stages or count), with wheat chagas2026 and maciel2015 as the closed example (436 fields in the wheat round). end_checklist.doses.uniform_sprays_kept_out checks it.",
+  "Count the applications: rule COUNT THE APPLICATIONS. When a treatment table or calendar marks the dates or stages of each treatment, n_applications is their count, on the trial or per record (wheat ramos1976, 110 fields). end_checklist.doses.application_count_source says where the count came from.",
+  "Dose in both forms: rule DOSE IN BOTH FORMS. Where commercial-product and active-ingredient doses are both printed, every record carries both, with the page of the treatment table (wheat goulart1999, 224 fields). end_checklist.doses gets both_forms_printed and records_with_both_forms.",
+  "Units and times from the methods: columns[] gets unit_source_place and crop_stage_source_place, and end_checklist.columns counts the columns whose unit came from the methods or text, those with no unit anywhere and whether the methods were searched (wheat brancao2004, 117 fields; picinini1999, 38).",
+  "Never invent a stage: rule NEVER INVENT A STAGE. A yield or tuber-quality column takes a harvest stage only when the harvest is printed with a date, a day count or a stage; otherwise not_printed (wheat silva1991 and salvadori1999, 156 fields). end_checklist.columns counts the harvest-stage columns.",
+  "Marginal columns: rule MARGINAL ROWS AND COLUMNS gets the closed examples 'Conjunto' (wheat ramos1976) and 'Médio' (wheat lima2005), 59 fields in the wheat round, and says that a Total column adding size classes is a variable, not a marginal.",
+  "Tuber size classes: new column_axis_kind size_classes and column field size_class, so a yield or number per grading class keeps the class on the column and the treatment unchanged.",
+  "Trial context for potato: sowing_date becomes planting_date, seeding_rate_or_spacing becomes spacing_or_density; new fields seed_tuber and uniform_sprays; environment adds storage. biotic_target rebuilt for late and early blight, black scurf, Fusarium, Verticillium, common and powdery scab, silver scurf, bacterial wilt, blackleg and soft rot, PVY, PLRV and virus complexes, tuber moth, aphids, Diabrotica, whitefly, leafminer, thrips, soil pests, nematodes, physiological disorders and storage rots.",
+  "Vocabulary rebuilt for potato: total, marketable, non-marketable, per-plant and size-class tuber yield, size-class share, tuber number and mean mass, dry matter, specific gravity, tuber chemistry, processing quality, tuber defects, tuber physical traits, sprouting and dormancy, storage loss, stems per plant, canopy cover, seed-tuber infection; the wheat grain, spike, hectoliter, flour, forage and mycotoxin terms are gone. treatment_type adds seed_tuber_treatment, nematicide, seed_tuber, planting_date, spacing_density, haulm_desiccation and storage. plant_part becomes leaves, upper and lower leaves, stem, canopy, tuber, tuber flesh, seed tuber, root, whole plant and plot. crop_stage_refers_to adds planting, tuber_initiation, flowering, haulm_desiccation and storage."
+ ]
+}
