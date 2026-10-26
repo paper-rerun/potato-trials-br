@@ -1,5 +1,7 @@
 # Potato management trials in Brazil
 
+Versão em português: [README.pt-BR.md](README.pt-BR.md)
+
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23670283.svg)](https://doi.org/10.5281/zenodo.23670283)
 
 1,874 trial results from 45 trials on potato (*Solanum tuberosum*) in Brazil, taken from the tables of 20 open-access Embrapa publications: diseases and pests (late blight, early blight, bacterial wilt, blackleg and soft rot, PVY and PLRV, root-knot nematode, *Diabrotica speciosa*, aphids and leaf beetles), fungicides and alternative products, forecast-based spraying, insecticides and nematicides, cultivar and clone trials, seed-potato degeneration, phosphorus and potassium, organic fertilization, plant density for pre-basic seed, haulm desiccation and soil decompaction. Each row is one number exactly as printed, with the page and table it came from, and points to the trial it belongs to.
